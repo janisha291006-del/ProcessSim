@@ -16,10 +16,66 @@ ALGO_NAMES = {
 }
 
 ALGO_ABOUT = {
-    "fcfs": "Processes are executed strictly in the order they arrive. Simple, but can cause long waits (convoy effect) if a big process arrives first.",
-    "sjf": "The process with the shortest burst time runs next. Non-preemptive, so once started a process runs to completion. Minimizes average waiting time.",
-    "srtf": "Preemptive version of SJF. If a new process arrives with a shorter remaining time than the one currently running, it takes over the CPU immediately.",
-    "rr": "Every process gets a fixed time slice (quantum) in a cyclic queue. Fair and responsive, ideal for time-sharing systems.",
+    "fcfs": (
+        '<p class="about-desc">Processes are executed in strict sequential order of their arrival '
+        'into the ready queue, operating under a First-In, First-Out (FIFO) queue policy.</p>'
+        '<div class="about-badges">'
+        '<span class="about-badge highlight">Non-Preemptive</span>'
+        '<span class="about-badge">Criterion: Arrival Time (AT)</span>'
+        '<span class="about-badge">Starvation: None</span>'
+        '</div>'
+        '<div class="about-subheading">Key Characteristics</div>'
+        '<ul class="about-list">'
+        '<li><strong>Simplicity:</strong> Minimal scheduling overhead and straightforward FIFO implementation.</li>'
+        '<li><strong>Convoy Effect:</strong> A CPU-heavy process running first delays all subsequent shorter jobs, sharply inflating average wait times.</li>'
+        '<li><strong>Deterministic:</strong> Execution order strictly mirrors arrival timestamps with zero preemption interruptions.</li>'
+        '</ul>'
+    ),
+    "sjf": (
+        '<p class="about-desc">Selects the available arrived process with the smallest CPU burst time. '
+        'Once execution starts, the process runs uninterrupted until complete.</p>'
+        '<div class="about-badges">'
+        '<span class="about-badge highlight">Non-Preemptive</span>'
+        '<span class="about-badge">Criterion: Burst Time (BT)</span>'
+        '<span class="about-badge">Starvation: Possible for long jobs</span>'
+        '</div>'
+        '<div class="about-subheading">Key Characteristics</div>'
+        '<ul class="about-list">'
+        '<li><strong>Optimal Waiting Time:</strong> Mathematically optimal for minimizing average waiting time among all non-preemptive algorithms.</li>'
+        '<li><strong>Starvation Risk:</strong> Long-running processes may wait indefinitely if shorter processes continuously arrive in the ready queue.</li>'
+        '<li><strong>Estimation Required:</strong> Real-world implementations require predicting CPU burst times in advance.</li>'
+        '</ul>'
+    ),
+    "srtf": (
+        '<p class="about-desc">The preemptive counterpart of SJF. Whenever a newly arrived process requires '
+        'less remaining CPU time than the currently running job, the CPU immediately preempts execution.</p>'
+        '<div class="about-badges">'
+        '<span class="about-badge highlight">Preemptive</span>'
+        '<span class="about-badge">Criterion: Remaining Time</span>'
+        '<span class="about-badge">Starvation: High risk for long jobs</span>'
+        '</div>'
+        '<div class="about-subheading">Key Characteristics</div>'
+        '<ul class="about-list">'
+        '<li><strong>Peak Responsiveness:</strong> Short tasks complete almost immediately without waiting behind large CPU-bound processes.</li>'
+        '<li><strong>Theoretical Best WT:</strong> Delivers the lowest overall average waiting time across all scheduling strategies.</li>'
+        '<li><strong>Preemption Overhead:</strong> Frequent context switches add CPU cycles and require continuous tracking of remaining bursts.</li>'
+        '</ul>'
+    ),
+    "rr": (
+        '<p class="about-desc">Tailored for time-sharing operating systems. Every ready process is allocated a '
+        'fixed slice of execution time (Time Quantum) before being preempted to the back of the queue.</p>'
+        '<div class="about-badges">'
+        '<span class="about-badge highlight">Preemptive</span>'
+        '<span class="about-badge">Criterion: Time Quantum (Q)</span>'
+        '<span class="about-badge">Starvation: None (Fair Share)</span>'
+        '</div>'
+        '<div class="about-subheading">Key Characteristics</div>'
+        '<ul class="about-list">'
+        '<li><strong>High Responsiveness:</strong> Low initial response time (RT); every process quickly gets a first turn on the CPU.</li>'
+        '<li><strong>Quantum Sensitivity:</strong> A very large quantum degrades into FCFS, whereas an excessively small quantum causes heavy switching overhead.</li>'
+        '<li><strong>Guaranteed Fairness:</strong> Starvation-free by design, ensuring equitable CPU distribution across all processes.</li>'
+        '</ul>'
+    ),
 }
 
 

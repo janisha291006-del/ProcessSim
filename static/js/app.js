@@ -1,8 +1,60 @@
 const ALGO_ABOUT = {
-  fcfs: "Processes are executed strictly in the order they arrive. Simple, but can cause long waits (convoy effect) if a big process arrives first.",
-  sjf: "The process with the shortest burst time runs next. Non-preemptive, so once started a process runs to completion. Minimizes average waiting time.",
-  srtf: "Preemptive version of SJF. If a new process arrives with a shorter remaining time than the one currently running, it takes over the CPU immediately.",
-  rr: "Every process gets a fixed time slice (quantum) in a cyclic queue. Fair and responsive, ideal for time-sharing systems.",
+  fcfs: `
+    <p class="about-desc">Processes are executed in strict sequential order of their arrival into the ready queue, operating under a First-In, First-Out (FIFO) queue policy.</p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Non-Preemptive</span>
+      <span class="about-badge">Criterion: Arrival Time (AT)</span>
+      <span class="about-badge">Starvation: None</span>
+    </div>
+    <div class="about-subheading">Key Characteristics</div>
+    <ul class="about-list">
+      <li><strong>Simplicity:</strong> Minimal scheduling overhead and straightforward FIFO implementation.</li>
+      <li><strong>Convoy Effect:</strong> A CPU-heavy process running first delays all subsequent shorter jobs, sharply inflating average wait times.</li>
+      <li><strong>Deterministic:</strong> Execution order strictly mirrors arrival timestamps with zero preemption interruptions.</li>
+    </ul>
+  `,
+  sjf: `
+    <p class="about-desc">Selects the available arrived process with the smallest CPU burst time. Once execution starts, the process runs uninterrupted until complete.</p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Non-Preemptive</span>
+      <span class="about-badge">Criterion: Burst Time (BT)</span>
+      <span class="about-badge">Starvation: Possible for long jobs</span>
+    </div>
+    <div class="about-subheading">Key Characteristics</div>
+    <ul class="about-list">
+      <li><strong>Optimal Waiting Time:</strong> Mathematically optimal for minimizing average waiting time among all non-preemptive algorithms.</li>
+      <li><strong>Starvation Risk:</strong> Long-running processes may wait indefinitely if shorter processes continuously arrive in the ready queue.</li>
+      <li><strong>Estimation Required:</strong> Real-world implementations require predicting CPU burst times in advance.</li>
+    </ul>
+  `,
+  srtf: `
+    <p class="about-desc">The preemptive counterpart of SJF. Whenever a newly arrived process requires less remaining CPU time than the currently running job, the CPU immediately preempts execution.</p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Preemptive</span>
+      <span class="about-badge">Criterion: Remaining Time</span>
+      <span class="about-badge">Starvation: High risk for long jobs</span>
+    </div>
+    <div class="about-subheading">Key Characteristics</div>
+    <ul class="about-list">
+      <li><strong>Peak Responsiveness:</strong> Short tasks complete almost immediately without waiting behind large CPU-bound processes.</li>
+      <li><strong>Theoretical Best WT:</strong> Delivers the lowest overall average waiting time across all scheduling strategies.</li>
+      <li><strong>Preemption Overhead:</strong> Frequent context switches add CPU cycles and require continuous tracking of remaining bursts.</li>
+    </ul>
+  `,
+  rr: `
+    <p class="about-desc">Tailored for time-sharing operating systems. Every ready process is allocated a fixed slice of execution time (Time Quantum) before being preempted to the back of the queue.</p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Preemptive</span>
+      <span class="about-badge">Criterion: Time Quantum (Q)</span>
+      <span class="about-badge">Starvation: None (Fair Share)</span>
+    </div>
+    <div class="about-subheading">Key Characteristics</div>
+    <ul class="about-list">
+      <li><strong>High Responsiveness:</strong> Low initial response time (RT); every process quickly gets a first turn on the CPU.</li>
+      <li><strong>Quantum Sensitivity:</strong> A very large quantum degrades into FCFS, whereas an excessively small quantum causes heavy switching overhead.</li>
+      <li><strong>Guaranteed Fairness:</strong> Starvation-free by design, ensuring equitable CPU distribution across all processes.</li>
+    </ul>
+  `,
 };
 
 // Butter-yellow / celadon-green family, alternating so adjacent blocks stay distinguishable
@@ -31,7 +83,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document
       .querySelectorAll(".tab-btn")
       .forEach((b) => b.classList.remove("active"));
-    document
+      document
       .querySelectorAll(".screen")
       .forEach((s) => s.classList.remove("active"));
     btn.classList.add("active");
@@ -43,7 +95,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 const algoSelect = document.getElementById("algo-select");
 algoSelect.addEventListener("change", () => {
   selectedAlgo = algoSelect.value;
-  document.getElementById("about-text").textContent = ALGO_ABOUT[selectedAlgo];
+  document.getElementById("about-text").innerHTML = ALGO_ABOUT[selectedAlgo];
   document.getElementById("quantum-group").style.display =
     selectedAlgo === "rr" ? "flex" : "none";
 });
@@ -64,16 +116,31 @@ function addRow(pid = null, at = 0, bt = 1) {
     <td><input type="text" class="pid-input" value="${pidValue}"></td>
     <td><input type="number" class="at-input" value="${at}" min="0"></td>
     <td><input type="number" class="bt-input" value="${bt}" min="1"></td>
-    <td class="res-col res-first res-ct"></td>
-    <td class="res-col res-st"></td>
-    <td class="res-col res-tat"></td>
-    <td class="res-col res-wt"></td>
-    <td class="res-col res-rt"></td>
+    <td class="action-col">
+      <button type="button" class="row-remove" title="Remove process" aria-label="Remove process">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+    </td>
   `;
   document.getElementById("process-rows").appendChild(tr);
   updateRunButtonState();
   resetResults();
 }
+
+document.getElementById("process-rows").addEventListener("click", (e) => {
+  const btn = e.target.closest(".row-remove");
+  if (btn) {
+    const tr = btn.closest("tr");
+    if (tr) {
+      tr.remove();
+      updateRunButtonState();
+      resetResults();
+    }
+  }
+});
 
 document.getElementById("add-row").addEventListener("click", () => addRow());
 
@@ -108,20 +175,20 @@ function collectProcesses() {
 // Clears old results. Called whenever the user edits the process table,
 // so old results never sit next to new inputs.
 function resetResults() {
-  document.getElementById("process-table").classList.remove("show-results");
+  const resultsSection = document.getElementById("results-section");
+  if (resultsSection) resultsSection.style.display = "none";
 
-  const resultCells = document.querySelectorAll("#process-rows .res-col");
-  for (let i = 0; i < resultCells.length; i++) {
-    resultCells[i].textContent = "";
-  }
+  const resultsTbody = document.getElementById("results-process-rows");
+  if (resultsTbody) resultsTbody.innerHTML = "";
 
   const summaryIds = ["sum-tat", "sum-wt", "sum-rt", "sum-cs"];
   for (let i = 0; i < summaryIds.length; i++) {
-    document.getElementById(summaryIds[i]).textContent = "\u2014";
+    const el = document.getElementById(summaryIds[i]);
+    if (el) el.textContent = "\u2014";
   }
 
-  document.getElementById("gantt-section").style.display = "none";
-  document.getElementById("results-algo-label").textContent = "\u2014";
+  const algoLabel = document.getElementById("results-algo-label");
+  if (algoLabel) algoLabel.textContent = "";
   lastSimData = null;
 }
 
@@ -176,45 +243,50 @@ document
   });
 
 function renderResults(data) {
-  document.getElementById("results-algo-label").textContent =
-    data.algorithm_label;
+  const algoLabel = document.getElementById("results-algo-label");
+  if (algoLabel) algoLabel.textContent = data.algorithm_label;
 
-  // 1. Fill CT, ST, TAT, WT, RT into the process table.
-  //    The results come back sorted by PID, so match each row by its PID.
-  const resultByPid = {};
-  for (let i = 0; i < data.table.length; i++) {
-    resultByPid[data.table[i].pid] = data.table[i];
-  }
-
-  const rows = document.querySelectorAll("#process-rows tr");
-  for (let i = 0; i < rows.length; i++) {
-    const pid = rows[i].querySelector(".pid-input").value.trim();
-    const r = resultByPid[pid];
-    if (!r) {
-      continue;
-    }
-    rows[i].querySelector(".res-ct").textContent = r.ct;
-    rows[i].querySelector(".res-st").textContent = r.at + r.rt; // start = arrival + response time
-    rows[i].querySelector(".res-tat").textContent = r.tat;
-    rows[i].querySelector(".res-wt").textContent = r.wt;
-    rows[i].querySelector(".res-rt").textContent = r.rt;
-  }
-  document.getElementById("process-table").classList.add("show-results");
-
-  // 2. Summary metrics (beside the table)
-  document.getElementById("sum-tat").textContent = data.averages.tat + " ms";
-  document.getElementById("sum-wt").textContent = data.averages.wt + " ms";
-  document.getElementById("sum-rt").textContent = data.averages.rt + " ms";
-  document.getElementById("sum-cs").textContent = data.context_switches;
-
-  // 3. Gantt chart (below the table)
+  // 1. Gantt chart title & rendering
   let title = "Gantt Chart (" + data.algorithm_label;
   if (data.algorithm === "rr") {
     title = title + ", Quantum=" + data.quantum_used;
   }
-  document.getElementById("gantt-title").textContent = title + ")";
-  document.getElementById("gantt-section").style.display = "block";
+  const ganttTitle = document.getElementById("gantt-title");
+  if (ganttTitle) ganttTitle.textContent = title + ")";
   renderGanttContainer();
+
+  // 2. Populate separate Process Results Table
+  const resultsTbody = document.getElementById("results-process-rows");
+  if (resultsTbody) {
+    resultsTbody.innerHTML = "";
+    data.table.forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${r.pid}</strong></td>
+        <td>${r.at}</td>
+        <td>${r.bt}</td>
+        <td>${r.ct}</td>
+        <td>${r.tat}</td>
+        <td>${r.wt}</td>
+        <td>${r.rt}</td>
+      `;
+      resultsTbody.appendChild(tr);
+    });
+  }
+
+  // 3. Summary metrics cards
+  const sumTat = document.getElementById("sum-tat");
+  if (sumTat) sumTat.textContent = data.averages.tat + " ms";
+  const sumWt = document.getElementById("sum-wt");
+  if (sumWt) sumWt.textContent = data.averages.wt + " ms";
+  const sumRt = document.getElementById("sum-rt");
+  if (sumRt) sumRt.textContent = data.averages.rt + " ms";
+  const sumCs = document.getElementById("sum-cs");
+  if (sumCs) sumCs.textContent = data.context_switches;
+
+  // 4. Reveal entire results section
+  const resultsSection = document.getElementById("results-section");
+  if (resultsSection) resultsSection.style.display = "block";
 }
 
 // assign a stable color per PID from a gantt array
