@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ProcessSim - CPU Scheduling Simulator</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">ProcessSim &mdash; CPU Scheduling Simulator</div>
+      <nav class="tabs">
+        <button class="tab-btn active" data-screen="dashboard">
+          1. Dashboard
+        </button>
+        <button class="tab-btn" data-screen="compare">
+          2. Comparison Analysis
+        </button>
+      </nav>
+    </header>
+
+    <!-- ===================== SCREEN 1: SIMULATOR (input + results in one panel) ===================== -->
+    <section id="dashboard" class="screen active">
+      <div class="panel-row single">
+        <div class="panel">
+          <div class="panel-header">
+            <span>Simulator</span>
+            <span class="panel-header-right" id="results-algo-label"
+              >&mdash;</span
+            >
+          </div>
+          <div class="panel-body">
+            <!-- Algorithm picker + description side by side -->
+            <div class="setup-row">
+              <div class="field-group">
+                <label>Select Algorithm</label>
+                <div class="algo-select-wrap">
+                  <select id="algo-select">
+                    {% for key, name in algo_names.items() %}
+                    <!-- prettier-ignore -->
+                    <option value="{{ key }}" {% if key == "fcfs" %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                  </select>
+                  <span class="info-icon" title="See description on the right"
+                    >i</span
+                  >
+                </div>
+              </div>
+
+              <div class="about-box field-group">
+                <div class="about-title">Algorithm Description</div>
+                <p id="about-text">{{ algo_about['fcfs'] }}</p>
+              </div>
+            </div>
+
+            <!-- Process table (left) + summary metrics (right, beside the table) -->
+            <div class="table-summary-row">
+              <div class="table-col">
+                <div class="col-title-row">
+                  <span class="col-title">Process Table</span>
+                  <div
+                    class="quantum-inline"
+                    id="quantum-group"
+                    style="display: none"
+                  >
+                    <label>Time Quantum</label>
+                    <input type="number" id="quantum" value="2" min="1" />
+                  </div>
+                </div>
+
+                <table class="editable-table" id="process-table">
+                  <thead>
+                    <tr>
+                      <th>PID</th>
+                      <th>AT (ms)</th>
+                      <th>BT (ms)</th>
+                      <th class="res-col res-first">CT</th>
+                      <th class="res-col">ST</th>
+                      <th class="res-col">TAT</th>
+                      <th class="res-col">WT</th>
+                      <th class="res-col">RT</th>
+                    </tr>
+                  </thead>
+                  <tbody id="process-rows"></tbody>
+                </table>
+
+                <div class="table-btn-row">
+                  <button type="button" id="add-row" class="ghost-btn">
+                    + Add Process
+                  </button>
+                  <button
+                    type="button"
+                    id="clear-table"
+                    class="ghost-btn danger-btn"
+                  >
+                    Clear Table
+                  </button>
+                </div>
+
+                <button type="button" id="run-simulation" class="run-btn">
+                  Run Simulation
+                </button>
+                <div id="run-error" class="error-text"></div>
+              </div>
+
+              <div class="summary-col">
+                <div class="col-title-row">
+                  <span class="col-title">Summary Metrics</span>
+                </div>
+                <div class="summary-stack">
+                  <div class="summary-card">
+                    <div class="label">Avg Turnaround Time</div>
+                    <div class="value" id="sum-tat">&mdash;</div>
+                  </div>
+                  <div class="summary-card">
+                    <div class="label">Avg Waiting Time</div>
+                    <div class="value" id="sum-wt">&mdash;</div>
+                  </div>
+                  <div class="summary-card">
+                    <div class="label">Avg Response Time</div>
+                    <div class="value" id="sum-rt">&mdash;</div>
+                  </div>
+                  <div class="summary-card">
+                    <div class="label">Context Switches</div>
+                    <div class="value" id="sum-cs">&mdash;</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gantt chart (below the process table, appears after Run Simulation) -->
+            <div id="gantt-section" style="display: none">
+              <div class="section-title-row">
+                <div class="section-title" id="gantt-title">Gantt Chart</div>
+                <div class="view-toggle">
+                  <button
+                    type="button"
+                    class="view-btn active"
+                    id="view-full-btn"
+                  >
+                    Full Timeline
+                  </button>
+                  <button type="button" class="view-btn" id="view-step-btn">
+                    Step-by-Step
+                  </button>
+                </div>
+              </div>
+              <div id="gantt-container"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SCREEN 2: COMPARISON ANALYSIS ===================== -->
+    <section id="compare" class="screen">
+      <div class="panel-row single">
+        <div class="panel">
+          <div class="panel-header">
+            <span>Comparison Analysis</span>
+            <span class="panel-header-right"
+              >FCFS &middot; SJF &middot; SRTF &middot; RR</span
+            >
+          </div>
+          <div class="panel-body">
+            <p class="hint-text">
+              Uses the same process list from Screen 1. Edit processes there,
+              then click below.
+            </p>
+            <button type="button" id="run-compare" class="run-btn">
+              Compare All Algorithms
+            </button>
+
+            <div id="compare-content" style="display: none">
+              <div class="compare-columns">
+                <div class="chart-box">
+                  <div class="chart-title">Average Performance Comparison</div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="compare-chart"></canvas>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="chart-title">Algorithm Efficiency Ranking</div>
+                  <table class="result-table" id="compare-table">
+                    <thead>
+                      <tr>
+                        <th>Algorithm</th>
+                        <th>Avg TAT</th>
+                        <th>Avg WT</th>
+                        <th>Avg RT</th>
+                        <th>Ctx Sw.</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                  <p class="formula-note">
+                    Highlighted cell = best (lowest) value for that column.
+                  </p>
+                </div>
+              </div>
+
+              <div class="insights-section">
+                <div class="section-title">What the Numbers Don't Tell You</div>
+                <div class="insights-source" id="insights-source"></div>
+                <div id="insights-body"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
