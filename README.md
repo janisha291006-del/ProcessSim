@@ -1,4 +1,4 @@
-# ProcessSim: FCFS CPU Scheduling Simulator
+# ProcessSim: CPU Scheduling Simulator
 
 An interactive, easy-to-use web simulator for the **First Come First Serve (FCFS)** CPU process scheduling algorithm. Visualize Gantt charts (both full timeline and step-by-step), calculate timing metrics (CT, TAT, WT, RT), and understand how FIFO process scheduling works in Operating Systems.
 
