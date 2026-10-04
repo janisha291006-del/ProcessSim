@@ -24,6 +24,30 @@ const ALGO_DETAILS = {
       <li><code>Response Time (RT)</code> = <strong>First Start Time &minus; AT</strong></li>
     </ul>
   `,
+  srtf: `
+    <div class="about-title">About SRTF Scheduling</div>
+    <p class="about-desc">
+      Shortest Remaining Time First (SRTF) is the preemptive version of SJF. The process with the smallest remaining burst time is allocated the CPU next.
+    </p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Preemptive</span>
+      <span class="about-badge">Criterion: Remaining Burst Time</span>
+      <span class="about-badge">Starvation: Possible for long jobs</span>
+    </div>
+    <div class="about-subheading">Key Concepts</div>
+    <ul class="about-list">
+      <li><strong>Preemptive:</strong> A newly arriving process with a shorter remaining burst time will preempt the running process.</li>
+      <li><strong>Optimal Waiting Time:</strong> Minimizes average waiting time across all processes.</li>
+      <li><strong>Context Switches:</strong> Preemption can introduce frequent context switches and runtime overhead.</li>
+    </ul>
+    <div class="about-subheading">Formulas</div>
+    <ul class="formula-list">
+      <li><code>Completion Time (CT)</code> = Time when process finishes execution</li>
+      <li><code>Turnaround Time (TAT)</code> = <strong>CT &minus; AT</strong></li>
+      <li><code>Waiting Time (WT)</code> = <strong>TAT &minus; BT</strong></li>
+      <li><code>Response Time (RT)</code> = <strong>First Start Time &minus; AT</strong></li>
+    </ul>
+  `,
   unsupported: (algoName) => `
     <div class="unsupported-box">
       <div class="unsupported-badge">Notice</div>
@@ -77,6 +101,8 @@ function updateAlgoView() {
 
   if (selectedAlgo === "fcfs") {
     aboutBox.innerHTML = ALGO_DETAILS.fcfs;
+  } else if (selectedAlgo === "srtf") {
+    aboutBox.innerHTML = ALGO_DETAILS.srtf;
   } else {
     aboutBox.innerHTML = ALGO_DETAILS.unsupported(ALGO_LABELS[selectedAlgo] || selectedAlgo);
     errorBox.textContent = "Can't implement this algorithm at this moment";
@@ -324,8 +350,8 @@ document
     const errorBox = document.getElementById("run-error");
     errorBox.textContent = "";
 
-    if (selectedAlgo !== "fcfs") {
-      errorBox.textContent = "Can't implement this algorithm at this moment";
+    if (selectedAlgo !== "fcfs" && selectedAlgo !== "srtf") {
+      errorBox.textContent = "Can't implement this algorithm at this moment still.";
       resetResults();
       return;
     }

@@ -132,59 +132,122 @@ def fcfs(processes):
 #     return table, gantt
 
 
-# SRTF
-# def srtf(processes):
-#     
-#     import copy
-#     procs = copy.deepcopy(processes)
-#     n = len(procs)
-#     remaining = [p["bt"] for p in procs]
-#     first_start = [None] * n
-#     completion = [None] * n
-#     completed = 0
-#     time = 0
-#     gantt = []
-#     running_pid = None
-#     segment_start = None
-#
-#     max_time = sum(p["bt"] for p in procs) + max(p["at"] for p in procs) + 1
-#
-#     while completed < n and time <= max_time:
-#         ready = [i for i in range(n) if procs[i]["at"] <= time and remaining[i] > 0]
-#
-#         if not ready:
-#             running_pid = None
-#             time += 1
-#             continue
-#
-#         idx = min(ready, key=lambda i: (remaining[i], procs[i]["at"], procs[i]["pid"]))
-#
-#         if first_start[idx] is None:
-#             first_start[idx] = time
-#
-#         if running_pid != idx:
-#             if running_pid is not None and segment_start is not None:
-#                 gantt.append({"pid": procs[running_pid]["pid"], "start": segment_start, "end": time})
-#             segment_start = time
-#             running_pid = idx
-#
-#         remaining[idx] -= 1
-#         time += 1
-#
-#         if remaining[idx] == 0:
-#             completion[idx] = time
-#             completed += 1
-#             gantt.append({"pid": procs[idx]["pid"], "start": segment_start, "end": time})
-#             running_pid = None
-#             segment_start = None
-#
-#     table = []
-#     for i, p in enumerate(procs):
-#         table.append(_make_table_row(p, completion[i], first_start[i]))
-#
-#     table.sort(key=lambda r: r["pid"])
-#     return table, gantt
+import copy
 
+
+def _make_table_row(p, ct, first_start):
+    """Build one row of the result table from a process dict."""
+    tat = ct - p["at"]  # Turnaround Time = Completion - Arrival
+    wt = tat - p["bt"]  # Waiting Time = Turnaround - Burst
+    rt = first_start - p["at"]  # Response Time = First run start - Arrival
+    return {
+        "pid": p["pid"],
+        "at": p["at"],
+        "bt": p["bt"],
+        "ct": ct,
+        "tat": tat,
+        "wt": wt,
+        "rt": rt,
+    }
+
+
+def srtf(processes):
+    if not processes:
+        return {
+            "table": [],
+            "gantt": [],
+            "averages": {"wt": 0, "tat": 0, "rt": 0},
+            "total_time": 0,
+            "context_switches": 0,
+        }
+
+    procs = copy.deepcopy(processes)
+    n = len(procs)
+    remaining = [p["bt"] for p in procs]
+    first_start = [None] * n
+    completion = [None] * n
+    completed = 0
+    time = 0
+    gantt = []
+    running_pid = None
+    segment_start = None
+
+    max_time = sum(p["bt"] for p in procs) + max(p["at"] for p in procs) + 1
+
+    while completed < n and time <= max_time:
+        ready = [
+            i for i in range(n) if procs[i]["at"] <= time and remaining[i] > 0
+        ]
+
+        if not ready:
+            # Flush running segment before idling
+            if running_pid is not None and segment_start is not None:
+                gantt.append({
+                    "pid": procs[running_pid]["pid"],
+                    "start": segment_start,
+                    "end": time,
+                })
+                segment_start = None
+            running_pid = None
+            time += 1
+            continue
+
+        idx = min(
+            ready, key=lambda i: (remaining[i], procs[i]["at"], procs[i]["pid"])
+        )
+
+        if first_start[idx] is None:
+            first_start[idx] = time
+
+        if running_pid != idx:
+            if running_pid is not None and segment_start is not None:
+                gantt.append({
+                    "pid": procs[running_pid]["pid"],
+                    "start": segment_start,
+                    "end": time,
+                })
+            segment_start = time
+            running_pid = idx
+
+        remaining[idx] -= 1
+        time += 1
+
+        if remaining[idx] == 0:
+            completion[idx] = time
+            completed += 1
+            gantt.append({
+                "pid": procs[idx]["pid"],
+                "start": segment_start,
+                "end": time,
+            })
+            running_pid = None
+            segment_start = None
+
+    table = []
+    for i, p in enumerate(procs):
+        table.append(_make_table_row(p, completion[i], first_start[i]))
+
+    table.sort(key=lambda r: r["pid"])
+
+    # summary averages
+    total_processes = len(table)
+    avg_wt = round(sum(row["wt"] for row in table) / total_processes, 2)
+    avg_tat = round(sum(row["tat"] for row in table) / total_processes, 2)
+    avg_rt = round(sum(row["rt"] for row in table) / total_processes, 2)
+    total_time = max((row["ct"] for row in table), default=0)
+    context_switches = max(len(gantt) - 1, 0)
+
+    return {
+        "table": table,
+        "gantt": gantt,
+        "averages": {
+            "wt": avg_wt,
+            "tat": avg_tat,
+            "rt": avg_rt,
+        },
+        "total_time": total_time,
+        "context_switches": context_switches,
+    }
 
 # RR
 # def round_robin(processes, quantum=2):
