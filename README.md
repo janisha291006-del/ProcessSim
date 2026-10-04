@@ -7,6 +7,9 @@ An interactive, easy-to-use web simulator for the **First Come First Serve (FCFS
 In First Come First Serve (FCFS) scheduling:
 - Processes are executed non-preemptively in the exact chronological order of their arrival into the ready queue.
 - If the CPU becomes idle waiting for processes to arrive, it advances time to the next arrival.
+In Shortest Remaining Time First (SRTF) scheduling:
+  - Processes are executed preemptively based on the shortest remaining burst time.
+  - Newly arriving shorter jobs preempt currently running processes, minimizing average waiting time.
 - Standard OS metrics are calculated automatically:
   - **Completion Time (CT)**: Time when the process finishes execution.
   - **Turnaround Time (TAT)**: `CT - AT`
