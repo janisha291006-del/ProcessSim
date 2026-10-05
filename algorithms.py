@@ -1,14 +1,6 @@
-import copy
+#1. FCFS  
+import copy 
 import re
-
-
-def _pid_sort_key(item):
-    """Sort key for natural alphanumeric ordering (e.g., P1, P2, ..., P9, P10)."""
-    pid = item["pid"] if isinstance(item, dict) else str(item)
-    return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', pid)]
-
-
-# 1. FCFS
 
 def fcfs(processes):
     if not processes:
@@ -20,8 +12,8 @@ def fcfs(processes):
             "context_switches": 0,
         }
 
-    # sorting process by arrival time, then by pid using natural sort
-    sorted_processes = sorted(processes, key=lambda p: (p["at"], _pid_sort_key(p)))
+    # sorting process by arrival time, then by pid for proper ordering
+    sorted_processes = sorted(processes, key=lambda p: (p["at"], p["pid"]))
 
     current_time = 0
     table = []
@@ -40,7 +32,7 @@ def fcfs(processes):
         waiting_time = turnaround_time - burst_time       # WT = TAT - BT
         response_time = start_time - arrival_time         # RT = Start - AT
 
-#gantt chart 
+    #gantt chart 
 
         gantt.append({                      #In every iteration of for p(from the for loop) in sorted_processes, you bundle 3 pieces of information into one dictionary
             "pid": pid,
@@ -48,7 +40,7 @@ def fcfs(processes):
             "end": completion_time,
         })
 
-#table
+    #table
         table.append({
             "pid": pid,
             "at": arrival_time,
@@ -60,7 +52,7 @@ def fcfs(processes):
         })
 
         current_time = completion_time
-#summary averages
+    #summary averages
 
     total_processes = len(table)
     avg_wt = round(sum(row["wt"] for row in table) / total_processes, 2)
@@ -69,8 +61,8 @@ def fcfs(processes):
     total_time = max((row["ct"] for row in table), default=0)
     context_switches = max(len(gantt) - 1, 0)
 
-    # Sort table naturally (P1, P2, ..., P9, P10)
-    table.sort(key=_pid_sort_key)
+
+    table.sort(key=lambda r: r["pid"]) # to sort processes in the way they were entered not on the basis of when they were scheduled 
 
     return {
         "table": table,
@@ -103,120 +95,46 @@ def fcfs(processes):
 #     }
 
 
-# 2. SJF (Shortest Job First - Non-Preemptive)
-
-def sjf(processes):
-    if not processes:
-        return {
-            "table": [],
-            "gantt": [],
-            "averages": {"wt": 0, "tat": 0, "rt": 0},
-            "total_time": 0,
-            "context_switches": 0,
-        }
-
-    n = len(processes)
-    pid = [p["pid"] for p in processes]
-    at = [p["at"] for p in processes]
-    bt = [p["bt"] for p in processes]
-
-    completed = [0] * n  # to store which processes have been completed
-    startTime = [-1] * n 
-    completionTime = [-1] * n
-
-    currentTime = min(at)
-
-    def pendingProcesses(at, completed, currentTime):
-        # Returns indices of all pending arrived processes
-        pending = []
-        for i in range(n):
-            if at[i] <= currentTime and completed[i] == 0:
-                pending.append(i)
-        return pending
-
-    def shortestJob(pending, bt):
-        # Returns index of process having minimum burst time (with tie-breaker for fairness)
-        shortest = pending[0]
-        for i in pending[1:]:
-            if bt[i] < bt[shortest]:
-                shortest = i
-            elif bt[i] == bt[shortest]:
-                if at[i] < at[shortest] or (at[i] == at[shortest] and _pid_sort_key(pid[i]) < _pid_sort_key(pid[shortest])):
-                    shortest = i
-        return shortest
-
-    gantt = []
-
-    while completed.count(1) != n:
-        pending = pendingProcesses(at, completed, currentTime)
-
-        if len(pending) == 0:
-            # If no process has arrived yet, jump to the next earliest arrival
-            uncompleted_arrivals = [at[i] for i in range(n) if completed[i] == 0]
-            if uncompleted_arrivals:
-                currentTime = max(currentTime + 1, min(uncompleted_arrivals))
-            else:
-                break
-            continue
-
-        # Select shortest job
-        p = shortestJob(pending, bt)
-
-        startTime[p] = currentTime
-        completionTime[p] = currentTime + bt[p]
-
-        gantt.append({
-            "pid": pid[p],
-            "start": startTime[p],
-            "end": completionTime[p],
-        })
-
-        currentTime = completionTime[p]
-        completed[p] = 1
-
-    table = []
-    for i in range(n):
-        tat_val = completionTime[i] - at[i]
-        wt_val = tat_val - bt[i]
-        rt_val = startTime[i] - at[i]
-        table.append({
-            "pid": pid[i],
-            "at": at[i],
-            "bt": bt[i],
-            "ct": completionTime[i],
-            "tat": tat_val,
-            "wt": wt_val,
-            "rt": rt_val,
-        })
-
-    # Sort table naturally (P1, P2, ..., P9, P10)
-    table.sort(key=_pid_sort_key)
-
-    total_processes = len(table)
-    avg_wt = round(sum(row["wt"] for row in table) / total_processes, 2)
-    avg_tat = round(sum(row["tat"] for row in table) / total_processes, 2)
-    avg_rt = round(sum(row["rt"] for row in table) / total_processes, 2)
-    total_time = max((row["ct"] for row in table), default=0)
-    context_switches = max(len(gantt) - 1, 0)
-
-    return {
-        "table": table,
-        "gantt": gantt,
-        "averages": {
-            "wt": avg_wt,
-            "tat": avg_tat,
-            "rt": avg_rt,
-        },
-        "total_time": total_time,
-        "context_switches": context_switches,
-    }
-
-
-import copy
-
+#SJF 
+# def sjf(processes):
+#     
+#     import copy
+#     procs = copy.deepcopy(processes)
+#     n = len(procs)
+#     done = [False] * n
+#     time = 0
+#     completed = 0
+#     table = []
+#     gantt = []
+#
+#     while completed < n:
+#         
+#         ready = [i for i in range(n) if not done[i] and procs[i]["at"] <= time]
+#
+#         if not ready:
+#             
+#             next_arrival = min(procs[i]["at"] for i in range(n) if not done[i])
+#             time = next_arrival
+#             continue
+#
+#         
+#         idx = min(ready, key=lambda i: (procs[i]["bt"], procs[i]["at"], procs[i]["pid"]))
+#         p = procs[idx]
+#
+#         start = time
+#         end = start + p["bt"]
+#         gantt.append({"pid": p["pid"], "start": start, "end": end})
+#         table.append(_make_table_row(p, end, start))
+#
+#         time = end
+#         done[idx] = True
+#         completed += 1
+#
+#     table.sort(key=lambda r: r["pid"])
+#     return table, gantt
 
 def _make_table_row(p, ct, first_start):
-    """Build one row of the result table from a process dict."""
+    
     tat = ct - p["at"]  # Turnaround Time = Completion - Arrival
     wt = tat - p["bt"]  # Waiting Time = Turnaround - Burst
     rt = first_start - p["at"]  # Response Time = First run start - Arrival
@@ -252,9 +170,7 @@ def srtf(processes):
     running_pid = None
     segment_start = None
 
-    max_time = sum(p["bt"] for p in procs) + max(p["at"] for p in procs) + 1
-
-    while completed < n and time <= max_time:
+    while completed < n:
         ready = [
             i for i in range(n) if procs[i]["at"] <= time and remaining[i] > 0
         ]
@@ -269,12 +185,23 @@ def srtf(processes):
                 })
                 segment_start = None
             running_pid = None
-            time += 1
+            # Fast-forward time to next arriving process
+            time = min(procs[i]["at"] for i in range(n) if remaining[i] > 0)
             continue
 
-        idx = min(
-            ready, key=lambda i: (remaining[i], procs[i]["at"], _pid_sort_key(procs[i]))
-        )
+        # Prefer keeping the currently running process if no strictly shorter job is ready
+        if running_pid is not None and remaining[running_pid] > 0 and procs[running_pid]["at"] <= time:
+            min_remaining = min(remaining[i] for i in ready)
+            if remaining[running_pid] == min_remaining:
+                idx = running_pid
+            else:
+                idx = min(
+                    ready, key=lambda i: (remaining[i], procs[i]["at"], procs[i]["pid"])
+                )
+        else:
+            idx = min(
+                ready, key=lambda i: (remaining[i], procs[i]["at"], procs[i]["pid"])
+            )
 
         if first_start[idx] is None:
             first_start[idx] = time
@@ -307,8 +234,7 @@ def srtf(processes):
     for i, p in enumerate(procs):
         table.append(_make_table_row(p, completion[i], first_start[i]))
 
-    # Sort table naturally (P1, P2, ..., P9, P10)
-    table.sort(key=_pid_sort_key)
+    table.sort(key=lambda r: r["pid"])
 
     # summary averages
     total_processes = len(table)
@@ -331,7 +257,7 @@ def srtf(processes):
     }
 
 # RR
-# def round_robin(processes, quantum=2):
+# def round_robin(processes, quantum = 2):
 #     
 #     import copy
 #     procs = copy.deepcopy(processes)
