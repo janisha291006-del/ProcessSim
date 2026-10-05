@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from algorithms import fcfs, srtf
+from algorithms import fcfs, srtf, sjf
 
 app = Flask(__name__)
 
@@ -43,7 +43,7 @@ def simulate():
     data = request.get_json(force=True)
     algo = data.get("algorithm", "fcfs").lower()
 
-    if algo not in ["fcfs", "srtf"]:
+    if algo not in ["fcfs", "srtf", "sjf"]:
         return jsonify({"error": "Can't implement this algorithm at this moment still."}), 400
 
     try:
@@ -52,6 +52,8 @@ def simulate():
             result = fcfs(processes)
         elif algo == "srtf":
             result = srtf(processes)
+        elif algo == "sjf":
+            result = sjf(processes)
         return jsonify(result)
     except Exception as exc:  # Catches any validation or execution error
         return jsonify({"error": str(exc)}), 400  # Sends error message to frontend as JSON with HTTP 400 Bad Request status

@@ -24,6 +24,30 @@ const ALGO_DETAILS = {
       <li><code>Response Time (RT)</code> = <strong>First Start Time &minus; AT</strong></li>
     </ul>
   `,
+  sjf: `
+    <div class="about-title">About SJF Scheduling</div>
+    <p class="about-desc">
+      Shortest Job First (SJF) is a non-preemptive scheduling policy that executes the waiting process with the smallest CPU burst time next.
+    </p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Non-Preemptive</span>
+      <span class="about-badge">Criterion: Burst Time (BT)</span>
+      <span class="about-badge">Starvation: Possible for long jobs</span>
+    </div>
+    <div class="about-subheading">Key Concepts</div>
+    <ul class="about-list">
+      <li><strong>Non-Preemptive:</strong> Once a process is allocated the CPU, it runs uninterrupted until completion.</li>
+      <li><strong>Optimal Waiting Time:</strong> Among non-preemptive algorithms, SJF gives the minimum average waiting time.</li>
+      <li><strong>Convoy Reduction:</strong> Reduces the convoy effect seen in FCFS by scheduling shorter tasks earlier.</li>
+    </ul>
+    <div class="about-subheading">Formulas</div>
+    <ul class="formula-list">
+      <li><code>Completion Time (CT)</code> = Time when process finishes execution</li>
+      <li><code>Turnaround Time (TAT)</code> = <strong>CT &minus; AT</strong></li>
+      <li><code>Waiting Time (WT)</code> = <strong>TAT &minus; BT</strong></li>
+      <li><code>Response Time (RT)</code> = <strong>First Start Time &minus; AT</strong></li>
+    </ul>
+  `,
   srtf: `
     <div class="about-title">About SRTF Scheduling</div>
     <p class="about-desc">
@@ -53,7 +77,7 @@ const ALGO_DETAILS = {
       <div class="unsupported-badge">Notice</div>
       <h3 class="unsupported-heading">Can't implement this algorithm at this moment</h3>
       <p class="unsupported-text">
-        <strong>${algoName}</strong> is not available yet. Currently, only <strong>First Come First Serve (FCFS)</strong> is supported.
+        <strong>${algoName}</strong> is not available yet. Currently, <strong>First Come First Serve (FCFS)</strong>, <strong>Shortest Job First (SJF)</strong>, and <strong>Shortest Remaining Time First (SRTF)</strong> are supported.
       </p>
     </div>
   `,
@@ -101,6 +125,8 @@ function updateAlgoView() {
 
   if (selectedAlgo === "fcfs") {
     aboutBox.innerHTML = ALGO_DETAILS.fcfs;
+  } else if (selectedAlgo === "sjf") {
+    aboutBox.innerHTML = ALGO_DETAILS.sjf;
   } else if (selectedAlgo === "srtf") {
     aboutBox.innerHTML = ALGO_DETAILS.srtf;
   } else {
@@ -350,7 +376,7 @@ document
     const errorBox = document.getElementById("run-error");
     errorBox.textContent = "";
 
-    if (selectedAlgo !== "fcfs" && selectedAlgo !== "srtf") {
+    if (selectedAlgo !== "fcfs" && selectedAlgo !== "srtf" && selectedAlgo !== "sjf") {
       errorBox.textContent = "Can't implement this algorithm at this moment still.";
       resetResults();
       return;
