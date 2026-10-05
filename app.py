@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from algorithms import fcfs, srtf, sjf
+from algorithms import fcfs, srtf, sjf, round_robin
 
 app = Flask(__name__)
 
@@ -43,7 +43,7 @@ def simulate():
     data = request.get_json(force=True)
     algo = data.get("algorithm", "fcfs").lower()
 
-    if algo not in ["fcfs", "srtf", "sjf"]:
+    if algo not in ["fcfs", "srtf", "sjf", "rr"]:
         return jsonify({"error": "Can't implement this algorithm at this moment still."}), 400
 
     try:
@@ -54,6 +54,14 @@ def simulate():
             result = srtf(processes)
         elif algo == "sjf":
             result = sjf(processes)
+        elif algo == "rr":
+            try:
+                quantum = int(data.get("quantum", 2))
+                if quantum <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                return jsonify({"error": "Time Quantum must be a positive number greater than 0."}), 400
+            result = round_robin(processes, quantum=quantum)
         return jsonify(result)
     except Exception as exc:  # Catches any validation or execution error
         return jsonify({"error": str(exc)}), 400  # Sends error message to frontend as JSON with HTTP 400 Bad Request status

@@ -72,12 +72,36 @@ const ALGO_DETAILS = {
       <li><code>Response Time (RT)</code> = <strong>First Start Time &minus; AT</strong></li>
     </ul>
   `,
+  rr: `
+    <div class="about-title">About Round Robin (RR) Scheduling</div>
+    <p class="about-desc">
+      Round Robin is a preemptive scheduling algorithm where every ready process is allocated a fixed slice of CPU time (Time Quantum) in cyclic order.
+    </p>
+    <div class="about-badges">
+      <span class="about-badge highlight">Preemptive</span>
+      <span class="about-badge">Criterion: Time Quantum (Q)</span>
+      <span class="about-badge">Starvation: None (Fair Share)</span>
+    </div>
+    <div class="about-subheading">Key Concepts</div>
+    <ul class="about-list">
+      <li><strong>Time Slicing:</strong> If a process does not finish within its quantum, it is preempted to the back of the ready queue.</li>
+      <li><strong>Responsiveness:</strong> Excellent for interactive time-sharing systems; all processes receive regular CPU time.</li>
+      <li><strong>Quantum Choice:</strong> If too small, context switching overhead dominates; if too large, it degrades into FCFS.</li>
+    </ul>
+    <div class="about-subheading">Formulas</div>
+    <ul class="formula-list">
+      <li><code>Completion Time (CT)</code> = Time when process finishes execution</li>
+      <li><code>Turnaround Time (TAT)</code> = <strong>CT &minus; AT</strong></li>
+      <li><code>Waiting Time (WT)</code> = <strong>TAT &minus; BT</strong></li>
+      <li><code>Response Time (RT)</code> = <strong>First Start Time &minus; AT</strong></li>
+    </ul>
+  `,
   unsupported: (algoName) => `
     <div class="unsupported-box">
       <div class="unsupported-badge">Notice</div>
       <h3 class="unsupported-heading">Can't implement this algorithm at this moment</h3>
       <p class="unsupported-text">
-        <strong>${algoName}</strong> is not available yet. Currently, <strong>First Come First Serve (FCFS)</strong>, <strong>Shortest Job First (SJF)</strong>, and <strong>Shortest Remaining Time First (SRTF)</strong> are supported.
+        <strong>${algoName}</strong> is not available yet.
       </p>
     </div>
   `,
@@ -123,12 +147,20 @@ function updateAlgoView() {
   const errorBox = document.getElementById("run-error");
   errorBox.textContent = "";
 
+  // Show quantum input only for Round Robin
+  const quantumGroup = document.getElementById("quantum-group");
+  if (quantumGroup) {
+    quantumGroup.style.display = selectedAlgo === "rr" ? "block" : "none";
+  }
+
   if (selectedAlgo === "fcfs") {
     aboutBox.innerHTML = ALGO_DETAILS.fcfs;
   } else if (selectedAlgo === "sjf") {
     aboutBox.innerHTML = ALGO_DETAILS.sjf;
   } else if (selectedAlgo === "srtf") {
     aboutBox.innerHTML = ALGO_DETAILS.srtf;
+  } else if (selectedAlgo === "rr") {
+    aboutBox.innerHTML = ALGO_DETAILS.rr;
   } else {
     aboutBox.innerHTML = ALGO_DETAILS.unsupported(ALGO_LABELS[selectedAlgo] || selectedAlgo);
     errorBox.textContent = "Can't implement this algorithm at this moment";
@@ -376,7 +408,7 @@ document
     const errorBox = document.getElementById("run-error");
     errorBox.textContent = "";
 
-    if (selectedAlgo !== "fcfs" && selectedAlgo !== "srtf" && selectedAlgo !== "sjf") {
+    if (selectedAlgo !== "fcfs" && selectedAlgo !== "srtf" && selectedAlgo !== "sjf" && selectedAlgo !== "rr") {
       errorBox.textContent = "Can't implement this algorithm at this moment still.";
       resetResults();
       return;
@@ -388,11 +420,22 @@ document
       return;
     }
 
+    const payload = { algorithm: selectedAlgo, processes };
+    if (selectedAlgo === "rr") {
+      const qInput = document.getElementById("quantum-input");
+      const quantum = qInput ? parseInt(qInput.value, 10) : 2;
+      if (isNaN(quantum) || quantum <= 0) {
+        errorBox.textContent = "Please enter a valid Time Quantum greater than 0.";
+        return;
+      }
+      payload.quantum = quantum;
+    }
+
     try {
       const res = await fetch("/api/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ algorithm: selectedAlgo, processes }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
