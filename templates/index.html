@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ProcessSim - CPU Scheduler Simulator</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="stylesheet" href="{{ static_v('css/style.css') }}" />
 </head>
 
 <body>
@@ -86,24 +86,32 @@
               Run Simulation
             </button>
             <div id="run-error" class="error-text"></div>
+            <div id="run-warning" class="warning-box" style="display: none;"></div>
           </div>
         </div>
 
         <!-- Simulation Results Section (Displayed after running) -->
         <div id="results-section" style="display: none">
-          <!-- 1. Gantt Chart View -->
+          <!-- 1. Running Queue and Ready Queue (each has its own view toggle) -->
+          <div id="mode-note"></div>
+
           <div class="section-title-row">
-            <div class="section-title" id="gantt-title">Gantt Chart</div>
+            <div class="section-title">Running Queue :</div>
             <div class="view-toggle">
-              <button type="button" class="view-btn active" id="view-full-btn">
-                Full Timeline
-              </button>
-              <button type="button" class="view-btn" id="view-step-btn">
-                Step-by-Step
-              </button>
+              <button type="button" class="view-btn active" id="running-full-btn">All at Once</button>
+              <button type="button" class="view-btn" id="running-step-btn">Step-by-Step</button>
             </div>
           </div>
-          <div id="gantt-container"></div>
+          <div id="running-container"></div>
+
+          <div class="section-title-row">
+            <div class="section-title">Ready Queue :</div>
+            <div class="view-toggle">
+              <button type="button" class="view-btn active" id="ready-full-btn">All at Once</button>
+              <button type="button" class="view-btn" id="ready-step-btn">Step-by-Step</button>
+            </div>
+          </div>
+          <div id="ready-container"></div>
 
           <!-- 2. Process Calculation Results Table -->
           <div class="results-table-section">
@@ -153,7 +161,7 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ static_v('js/app.js') }}"></script>
 </body>
 
 </html>

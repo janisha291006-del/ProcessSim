@@ -114,23 +114,15 @@ const ALGO_LABELS = {
   rr: "Round Robin (RR)",
 };
 
-// Process block color palette (warm butter-yellow & celadon-green alternating colors)
-const BLOCK_COLORS = [
-  "#F3DE8A",
-  "#8FBC94",
-  "#F0C56B",
-  "#B7D9BC",
-  "#E8B44F",
-  "#6FA37A",
-];
-
-const PIXELS_PER_MS = 32;
-
 let selectedAlgo = "fcfs";
 let rowCount = 0;
 let lastSimData = null;
-let ganttMode = "full"; // "full" or "step"
-let stepIndex = 0;
+// The Running Queue and the Ready Queue each have their own view:
+// mode "full" = all steps at once, "step" = one step at a time
+const queueViews = {
+  running: { mode: "full", index: 0 },
+  ready: { mode: "full", index: 0 },
+};
 
 // ---------------- Algorithm Selection ----------------
 
@@ -179,7 +171,56 @@ function updateRunButtonState() {
     .classList.toggle("run-btn-dark", rows >= 3);
 }
 
-function addRow(pid = null, at = 0, bt = 1) {
+// Arrival times must never go backwards: a process added later cannot arrive
+// before the processes that were added earlier. Returns an error message or "".
+function validateArrivalOrder() {
+  const rows = document.querySelectorAll("#process-rows tr");
+  let message = "";
+  let lastAt = null;
+  let lastPid = "";
+
+  rows.forEach((row) => {
+    const atInput = row.querySelector(".at-input");
+    const pid = row.querySelector(".pid-input").value.trim();
+    const at = parseInt(atInput.value, 10);
+    const bad = lastAt !== null && !isNaN(at) && at < lastAt;
+    atInput.classList.toggle("input-invalid", bad);
+
+    if (bad && !message) {
+      message = `Arrival time of ${pid} (${at}) cannot be less than the arrival time of ${lastPid} (${lastAt}) added before it.`;
+    }
+    if (!isNaN(at) && (lastAt === null || at >= lastAt)) {
+      lastAt = at;
+      lastPid = pid;
+    }
+  });
+  return message;
+}
+
+// Soft warnings (do NOT stop the simulation)
+function showWarnings(warnings) {
+  const box = document.getElementById("run-warning");
+  if (!warnings || warnings.length === 0) {
+    box.style.display = "none";
+    box.textContent = "";
+    return;
+  }
+  box.innerHTML = "&#9888; " + warnings.join("<br>&#9888; ");
+  box.style.display = "block";
+}
+
+// New rows start at the latest arrival time so the order rule is already satisfied
+function latestArrivalTime() {
+  let latest = 0;
+  document.querySelectorAll("#process-rows .at-input").forEach((el) => {
+    const v = parseInt(el.value, 10);
+    if (!isNaN(v) && v > latest) latest = v;
+  });
+  return latest;
+}
+
+function addRow(pid = null, at = null, bt = 1) {
+  if (at === null) at = latestArrivalTime();
   rowCount += 1;
   const pidValue = pid || `P${rowCount}`;
   const tr = document.createElement("tr");
@@ -210,6 +251,7 @@ document.getElementById("process-rows").addEventListener("click", (e) => {
       tr.remove();
       updateRunButtonState();
       resetResults();
+      document.getElementById("run-error").textContent = validateArrivalOrder();
     }
   }
 });
@@ -239,115 +281,191 @@ function resetResults() {
     if (el) el.textContent = "\u2014";
   });
 
+  showWarnings([]);
   lastSimData = null;
 }
 
-document.getElementById("process-rows").addEventListener("input", resetResults);
+document.getElementById("process-rows").addEventListener("input", () => {
+  resetResults();
+  document.getElementById("run-error").textContent = validateArrivalOrder();
+});
 
-// ---------------- Gantt Chart Timeline Rendering ----------------
+// ---------------- Ready Queue & Running Process View ----------------
 
-function buildPidColorMap(gantt) {
+// Warm palette: every process keeps its own color everywhere
+const BLOCK_COLORS = ["#F3DE8A", "#8FBC94", "#F0C56B", "#B7D9BC", "#E8B44F", "#6FA37A"];
+
+function buildPidColorMap(steps) {
   const pidColor = {};
   let colorIdx = 0;
-  gantt.forEach((seg) => {
-    if (!(seg.pid in pidColor)) {
-      pidColor[seg.pid] = BLOCK_COLORS[colorIdx % BLOCK_COLORS.length];
-      colorIdx += 1;
-    }
+  steps.forEach((st) => {
+    const pids = [st.running, ...st.ready.map((p) => p.pid)];
+    pids.forEach((pid) => {
+      if (pid && !(pid in pidColor)) {
+        pidColor[pid] = BLOCK_COLORS[colorIdx % BLOCK_COLORS.length];
+        colorIdx += 1;
+      }
+    });
   });
   return pidColor;
 }
 
-function buildGanttHtml(segments) {
-  let ganttHtml = "";
-  let rulerHtml = "";
-  const pidColor = buildPidColorMap(segments);
+// Explains how long each step lasts for the chosen algorithm
+function modeNoteHtml() {
+  let text = "";
+  if (selectedAlgo === "fcfs" || selectedAlgo === "sjf") {
+    text = "Non-preemptive: no time quantum. Each process runs its full burst time in one go, and the ready queue shows who is waiting when it finishes.";
+  } else if (selectedAlgo === "srtf") {
+    text = "Preemptive: time quantum = 1 ms. The shortest remaining job is picked again every 1 ms.";
+  } else if (selectedAlgo === "rr") {
+    const q = document.getElementById("quantum-input").value;
+    text = `Preemptive: time quantum = ${q} ms. Each process runs at most ${q} ms, then goes to the back of the ready queue.`;
+  }
+  return `<div class="mode-note">${text}</div>`;
+}
 
-  segments.forEach((seg, i) => {
-    const duration = seg.end - seg.start;
-    const width = Math.max(duration * PIXELS_PER_MS, PIXELS_PER_MS);
-    ganttHtml += `<div class="gantt-block" style="min-width:${width}px; background:${pidColor[seg.pid]}">${seg.pid}</div>`;
-    rulerHtml += `<div class="ruler-tick" style="min-width:${width}px;">${seg.start}</div>`;
-    if (i === segments.length - 1) {
-      rulerHtml += `<div class="ruler-tick" style="min-width:0;">${seg.end}</div>`;
+// One column of the queue strip: [ box with name ]  then Time under it, then Bal. Time under it
+function queueColHtml({ name, color, time, endTime, bal, classes }) {
+  const bg = color ? ` style="background:${color}"` : "";
+  const end = endTime !== null && endTime !== undefined ? `<span class="q-time-end">${endTime}</span>` : "";
+  return `
+    <div class="q-col${classes}">
+      <div class="q-box"${bg}>${name}</div>
+      <div class="q-time">${time}${end}</div>
+      <div class="q-bal${bal === 0 ? " q-bal-zero" : ""}">${bal}</div>
+    </div>`;
+}
+
+// ONE queue in the notebook format:
+//   Running Queue :  [ P1 | P1 | P3 | ... ]
+//   Time:            0    1    2   ...
+//   Bal. Time:       4    3    0   ...
+// kind = "running" (one box per step) or "ready" (the boxes are the processes waiting in each step)
+function buildTimelineHtml(steps, colors, kind, currentIndex = -1) {
+  let cols = "";
+
+  steps.forEach((st, i) => {
+    const current = i === currentIndex ? " current" : "";
+
+    if (kind === "running") {
+      const last = i === steps.length - 1;
+      cols += queueColHtml({
+        name: st.running || "Idle",
+        color: st.running ? colors[st.running] : "",
+        time: st.start,
+        endTime: last ? st.end : null,
+        // balance (remaining) burst time AFTER this step has run
+        bal: st.running ? st.running_remaining - (st.end - st.start) : "&mdash;",
+        classes: current + (st.running ? "" : " idle"),
+      });
+      return;
     }
+
+    // Ready queue: one box per waiting process (front first). A thicker line separates each step.
+    const items = st.ready.length ? st.ready : [null];
+    items.forEach((p, j) => {
+      cols += queueColHtml({
+        name: p ? p.pid : "empty",
+        color: p ? colors[p.pid] : "",
+        time: j === 0 ? st.ready_at : "",
+        endTime: null,
+        bal: p ? p.remaining : "&mdash;",
+        classes: current + (j === 0 && i > 0 ? " group-start" : "") + (p ? "" : " idle"),
+      });
+    });
   });
 
   return `
-    <div class="gantt-wrap">
-      <div class="gantt-ruler">${rulerHtml}</div>
-      <div class="gantt-chart">${ganttHtml}</div>
-    </div>
-  `;
+    <div class="q-wrap">
+      <div class="q-labels">
+        <div class="q-label q-label-box">${kind === "running" ? "Running" : "Ready"}</div>
+        <div class="q-label">Time:</div>
+        <div class="q-label">Bal. Time:</div>
+      </div>
+      <div class="q-scroll" id="tl-scroll-${kind}">
+        <div class="q-strip">${cols}</div>
+      </div>
+    </div>`;
 }
 
-function renderGanttContainer() {
-  if (!lastSimData) return;
-  const container = document.getElementById("gantt-container");
-  const gantt = lastSimData.gantt;
+// The line under a step-by-step timeline explaining the current step
+function stepCaptionHtml(st, index, kind) {
+  let text = "";
+  if (kind === "running") {
+    text = st.running
+      ? `<strong>${st.running}</strong> is running (${st.start}ms &rarr; ${st.end}ms)`
+      : `CPU is idle (${st.start}ms &rarr; ${st.end}ms)`;
+  } else {
+    const queue = st.ready.length ? st.ready.map((p) => p.pid).join(" &rarr; ") : "empty";
+    text = `Ready queue: <strong>${queue}</strong>`;
+  }
+  return `<div class="current-seg">Step ${index + 1}: ${text}${st.note ? ` &middot; ${st.note}` : ""}</div>`;
+}
 
-  document
-    .getElementById("view-full-btn")
-    .classList.toggle("active", ganttMode === "full");
-  document
-    .getElementById("view-step-btn")
-    .classList.toggle("active", ganttMode === "step");
+function renderQueuePanel(kind) {
+  const view = queueViews[kind];
+  const steps = lastSimData.steps;
+  const container = document.getElementById(`${kind}-container`);
+  const colors = buildPidColorMap(steps);
 
-  if (ganttMode === "full") {
-    container.innerHTML = buildGanttHtml(gantt);
+  document.getElementById(`${kind}-full-btn`).classList.toggle("active", view.mode === "full");
+  document.getElementById(`${kind}-step-btn`).classList.toggle("active", view.mode === "step");
+
+  // All at once: the whole queue timeline in one go
+  if (view.mode === "full") {
+    container.innerHTML = buildTimelineHtml(steps, colors, kind);
     return;
   }
 
-  // Step-by-step mode: show timeline up to current step
-  const visible = gantt.slice(0, stepIndex + 1);
-  const seg = gantt[stepIndex];
+  // Step by step: the timeline grows one step at a time
+  const i = view.index;
   container.innerHTML = `
-    ${buildGanttHtml(visible)}
-    <div class="current-seg">Executing: <strong>${seg.pid}</strong> (${seg.start}ms &rarr; ${seg.end}ms)</div>
+    ${buildTimelineHtml(steps.slice(0, i + 1), colors, kind, i)}
+    ${stepCaptionHtml(steps[i], i, kind)}
     <div class="step-controls">
-      <button type="button" class="step-btn" id="step-prev" ${stepIndex === 0 ? "disabled" : ""}>&larr; Prev</button>
-      <button type="button" class="step-btn" id="step-next" ${stepIndex === gantt.length - 1 ? "disabled" : ""}>Next &rarr;</button>
-      <span class="step-info">Step ${stepIndex + 1} of ${gantt.length}</span>
-    </div>
-  `;
+      <button type="button" class="step-btn" id="${kind}-prev" ${i === 0 ? "disabled" : ""}>&larr; Prev</button>
+      <button type="button" class="step-btn" id="${kind}-next" ${i === steps.length - 1 ? "disabled" : ""}>Next &rarr;</button>
+      <span class="step-info">Step ${i + 1} of ${steps.length}</span>
+    </div>`;
 
-  // Ensure current step is scrolled into view
-  const wrap = container.querySelector(".gantt-wrap");
-  if (wrap) wrap.scrollLeft = wrap.scrollWidth;
+  const scroller = document.getElementById(`tl-scroll-${kind}`);
+  if (scroller) scroller.scrollLeft = scroller.scrollWidth; // keep the current step visible
 
-  const prevBtn = document.getElementById("step-prev");
-  const nextBtn = document.getElementById("step-next");
-  if (prevBtn) {
-    prevBtn.addEventListener("click", () => {
-      stepIndex = Math.max(stepIndex - 1, 0);
-      renderGanttContainer();
-    });
-  }
-  if (nextBtn) {
-    nextBtn.addEventListener("click", () => {
-      stepIndex = Math.min(stepIndex + 1, gantt.length - 1);
-      renderGanttContainer();
-    });
-  }
+  document.getElementById(`${kind}-prev`).addEventListener("click", () => {
+    view.index = Math.max(view.index - 1, 0);
+    renderQueuePanel(kind);
+  });
+  document.getElementById(`${kind}-next`).addEventListener("click", () => {
+    view.index = Math.min(view.index + 1, steps.length - 1);
+    renderQueuePanel(kind);
+  });
 }
 
-// Gantt view mode toggles
-document.getElementById("view-full-btn").addEventListener("click", () => {
-  ganttMode = "full";
-  renderGanttContainer();
-});
+function renderQueueView() {
+  if (!lastSimData) return;
+  document.getElementById("mode-note").innerHTML = modeNoteHtml();
+  renderQueuePanel("running");
+  renderQueuePanel("ready");
+}
 
-document.getElementById("view-step-btn").addEventListener("click", () => {
-  ganttMode = "step";
-  stepIndex = 0;
-  renderGanttContainer();
+// Each queue has its own All at Once / Step-by-Step toggle
+["running", "ready"].forEach((kind) => {
+  document.getElementById(`${kind}-full-btn`).addEventListener("click", () => {
+    queueViews[kind].mode = "full";
+    if (lastSimData) renderQueuePanel(kind);
+  });
+  document.getElementById(`${kind}-step-btn`).addEventListener("click", () => {
+    queueViews[kind].mode = "step";
+    queueViews[kind].index = 0;
+    if (lastSimData) renderQueuePanel(kind);
+  });
 });
 
 // ---------------- Results Display ----------------
 
 function renderResults(data) {
-  // 1. Gantt chart
-  renderGanttContainer();
+  // 1. Ready queue & running process
+  renderQueueView();
 
   // 2. Populate Process Calculation Table
   const resultsTbody = document.getElementById("results-process-rows");
@@ -414,6 +532,12 @@ document
       return;
     }
 
+    const orderError = validateArrivalOrder();
+    if (orderError) {
+      errorBox.textContent = orderError; // this one blocks the run
+      return;
+    }
+
     const processes = collectProcesses();
     if (processes.length === 0) {
       errorBox.textContent = "Please add at least one process to simulate.";
@@ -445,9 +569,10 @@ document
       }
 
       lastSimData = data;
-      ganttMode = "full";
-      stepIndex = 0;
+      queueViews.running = { mode: "full", index: 0 };
+      queueViews.ready = { mode: "full", index: 0 };
       renderResults(data);
+      showWarnings(data.warnings); // warning only - the simulation has already run
     } catch (err) {
       errorBox.textContent = "Request failed: " + err.message;
     }

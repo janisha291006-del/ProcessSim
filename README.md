@@ -1,6 +1,6 @@
 # ProcessSim: CPU Scheduling Simulator
 
-An interactive, easy-to-use web simulator for the **First Come First Serve (FCFS)** and **Shortest Remaining Time First (SRTF)**  CPU process scheduling algorithm. Visualize Gantt charts (both full timeline and step-by-step), calculate timing metrics (CT, TAT, WT, RT), and understand how FIFO process scheduling works in Operating Systems.
+An interactive, easy-to-use web simulator for the **First Come First Serve (FCFS)** and **Shortest Remaining Time First (SRTF)**  CPU process scheduling algorithm. See the Ready Queue and Running process at every step (all steps at once, or one step at a time), calculate timing metrics (CT, TAT, WT, RT), and understand how FIFO process scheduling works in Operating Systems.
 
 ## Overview
 
@@ -19,7 +19,8 @@ In Shortest Remaining Time First (SRTF) scheduling:
 ## Features
 
 - **Interactive Process Input Table**: Add, remove, or edit process rows with custom Arrival Time (AT) and Burst Time (BT).
-- **Gantt Chart Timeline**: Visual representation with time markers along with a **Step-by-Step** mode to walk through execution step-by-step.
+- **Ready Queue & Running Process View**: Shows who is on the CPU and who is waiting in the ready queue at every step, either **all steps at once** or **step-by-step**.
+- **Input Validation**: A new process cannot arrive earlier than the processes added before it. If every process has the same Burst Time, a warning is shown but the simulation still runs.
 - **Process Result Table**: Clearly shows AT, BT, CT, TAT, WT, and RT for every process.
 - **Summary Metrics**: Displays Average Waiting Time, Average Turnaround Time, Average Response Time, and Total Schedule Time.
 
@@ -54,7 +55,7 @@ process-scheduler/
 │   ├── css/
 │   │   └── style.css      # Design styling and layout
 │   └── js/
-│       └── app.js         # Frontend logic, Gantt rendering & API calls
+│       └── app.js         # Frontend logic, queue view rendering & API calls
 ├── templates/
 │   └── index.html         # Main dashboard HTML template
 ├── algorithms.py          # Clean FCFS simulation logic
