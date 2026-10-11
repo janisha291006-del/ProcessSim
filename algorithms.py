@@ -8,6 +8,14 @@ def _pid_sort_key(item):
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', pid)]
 
 
+def count_context_switches(gantt):
+    """Count real context switches: the CPU moves from one process to a DIFFERENT process.
+    (Round Robin can run the same process twice in a row when it is the only one left -
+    that is not a switch. Idle gaps are not counted either.)"""
+    runs = [seg["pid"] for seg in gantt]
+    return sum(1 for a, b in zip(runs, runs[1:]) if a != b)
+
+
 # 1. FCFS  
 def fcfs(processes):
     if not processes:
@@ -20,7 +28,7 @@ def fcfs(processes):
         }
 
     # sorting process by arrival time, then by pid for proper ordering
-    sorted_processes = sorted(processes, key=lambda p: (p["at"], p["pid"]))
+    sorted_processes = sorted(processes, key=lambda p: (p["at"], _pid_sort_key(p)))
 
     current_time = 0
     table = []
@@ -66,10 +74,10 @@ def fcfs(processes):
     avg_tat = round(sum(row["tat"] for row in table) / total_processes, 2)
     avg_rt = round(sum(row["rt"] for row in table) / total_processes, 2)
     total_time = max((row["ct"] for row in table), default=0)
-    context_switches = max(len(gantt) - 1, 0)
+    context_switches = count_context_switches(gantt)
 
 
-    table.sort(key=lambda r: r["pid"]) # to sort processes in the way they were entered not on the basis of when they were scheduled 
+    table.sort(key=_pid_sort_key) # to sort processes in the way they were entered not on the basis of when they were scheduled 
 
     return {
         "table": table,
@@ -196,7 +204,7 @@ def sjf(processes):
     avg_tat = round(sum(row["tat"] for row in table) / total_processes, 2)
     avg_rt = round(sum(row["rt"] for row in table) / total_processes, 2)
     total_time = max((row["ct"] for row in table), default=0)
-    context_switches = max(len(gantt) - 1, 0)
+    context_switches = count_context_switches(gantt)
 
     return {
         "table": table,
@@ -273,11 +281,11 @@ def srtf(processes):
                 idx = running_pid
             else:
                 idx = min(
-                    ready, key=lambda i: (remaining[i], procs[i]["at"], procs[i]["pid"])
+                    ready, key=lambda i: (remaining[i], procs[i]["at"], _pid_sort_key(procs[i]))
                 )
         else:
             idx = min(
-                ready, key=lambda i: (remaining[i], procs[i]["at"], procs[i]["pid"])
+                ready, key=lambda i: (remaining[i], procs[i]["at"], _pid_sort_key(procs[i]))
             )
 
         if first_start[idx] is None:
@@ -311,7 +319,7 @@ def srtf(processes):
     for i, p in enumerate(procs):
         table.append(_make_table_row(p, completion[i], first_start[i]))
 
-    table.sort(key=lambda r: r["pid"])
+    table.sort(key=_pid_sort_key)
 
     # summary averages
     total_processes = len(table)
@@ -319,7 +327,7 @@ def srtf(processes):
     avg_tat = round(sum(row["tat"] for row in table) / total_processes, 2)
     avg_rt = round(sum(row["rt"] for row in table) / total_processes, 2)
     total_time = max((row["ct"] for row in table), default=0)
-    context_switches = max(len(gantt) - 1, 0)
+    context_switches = count_context_switches(gantt)
 
     return {
         "table": table,
@@ -444,7 +452,7 @@ def round_robin(processes, quantum=2):
     avg_tat = round(sum(row["tat"] for row in table) / total_processes, 2) if total_processes else 0
     avg_rt = round(sum(row["rt"] for row in table) / total_processes, 2) if total_processes else 0
     total_time = max((row["ct"] for row in table), default=0)
-    context_switches = max(len(gantt) - 1, 0)
+    context_switches = count_context_switches(gantt)
 
     return {
         "table": table,
@@ -579,12 +587,20 @@ def build_steps(processes, gantt, algo):
     return steps
 
 
-def build_warnings(processes):
+def build_warnings(processes, total_time=None):
     """Non-blocking warnings: the simulation still runs when any of these fire."""
     warnings = []
-    if len(processes) > 1 and len({p["bt"] for p in processes}) == 1:
+
+    if total_time is not None:
+        idle = total_time - sum(p["bt"] for p in processes)
+        if idle > 0:
+            warnings.append(f"The CPU sits idle for {idle} ms in total, waiting for the next process to arrive.")
+
+    arrivals = [p["at"] for p in processes]
+    if len(set(arrivals)) < len(arrivals):
         warnings.append(
-            f"All processes have the same Burst Time ({processes[0]['bt']} ms). "
-            "SJF and SRTF cannot prefer a shorter job, so they will behave like FCFS."
+            "Some processes arrive at the same time. When processes tie, the earlier arrival "
+            "is picked first, then the lower process ID (P1 before P2)."
         )
+
     return warnings

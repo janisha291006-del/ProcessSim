@@ -15,8 +15,14 @@
     <div class="header-tag">Operating Systems Process Simulator</div>
   </header>
 
+  <!-- Screen switcher -->
+  <nav class="tabs">
+    <button type="button" class="tab-btn active" data-screen="sim">1. Simulator &amp; Results</button>
+    <button type="button" class="tab-btn" data-screen="compare">2. Comparison &amp; Analysis</button>
+  </nav>
+
   <!-- Main Simulator Screen -->
-  <main class="main-content">
+  <main class="main-content" id="screen-sim">
     <div class="panel">
       <div class="panel-header">
         <span>Process Scheduling Simulator</span>
@@ -161,7 +167,76 @@
     </div>
   </main>
 
+  <!-- Screen 2: Comparison & Analysis -->
+  <main class="main-content" id="screen-compare" style="display: none;">
+    <div class="panel">
+      <div class="panel-header">
+        <span>Algorithm Comparison &amp; Analysis</span>
+        <span class="panel-header-right">Same processes, all 4 algorithms</span>
+      </div>
+
+      <div class="panel-body">
+        <!-- One-row toolbar: the processes on the left, quantum + button on the right -->
+        <div class="compare-toolbar">
+          <div class="compare-actions">
+            <label for="compare-quantum">RR quantum (ms)</label>
+            <input type="number" id="compare-quantum" min="1" value="2">
+            <button type="button" id="compare-run" class="compare-btn">Compare</button>
+          </div>
+        </div>
+        <div id="compare-error" class="error-text"></div>
+        <div id="compare-warning" class="warning-box" style="display: none;"></div>
+
+        <div id="compare-empty" class="empty-note">
+          Add processes on the Simulator screen, then come back here to compare the algorithms.
+        </div>
+
+        <div id="compare-results" style="display: none;">
+          <!-- 0. Comparison table (same format as the reference) -->
+          <div class="algo-table-card">
+            <div class="algo-table-head">
+              <span class="algo-table-title">Comparison of the four algorithms:</span>
+              <span class="chart-hint">lower is better</span>
+            </div>
+            <div class="table-responsive">
+              <table class="algo-table" id="algo-table"></table>
+            </div>
+          </div>
+
+          <!-- 1. Headline winners -->
+          <div class="kpi-row" id="compare-kpis"></div>
+
+          <!-- 2. Three small side-by-side charts: average TAT, WT and RT -->
+          <div class="small-chart-grid">
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Avg TAT (ms)</span><span class="chart-hint">lower is better</span></div>
+              <div id="chart-tat"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Avg WT (ms)</span><span class="chart-hint">lower is better</span></div>
+              <div id="chart-wt"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Avg RT (ms)</span><span class="chart-hint">lower is better</span></div>
+              <div id="chart-rt"></div>
+            </div>
+          </div>
+
+          <!-- 3. Gemini insights (exactly 4) -->
+          <div>
+            <div class="section-title-row">
+              <div class="section-title">Insights from Gemini AI</div>
+              <button type="button" id="insights-refresh" class="view-btn" style="display: none;">&#8635; Regenerate</button>
+            </div>
+            <div id="insights-container"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
   <script src="{{ static_v('js/app.js') }}"></script>
+  <script src="{{ static_v('js/compare.js') }}"></script>
 </body>
 
 </html>

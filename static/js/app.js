@@ -171,32 +171,6 @@ function updateRunButtonState() {
     .classList.toggle("run-btn-dark", rows >= 3);
 }
 
-// Arrival times must never go backwards: a process added later cannot arrive
-// before the processes that were added earlier. Returns an error message or "".
-function validateArrivalOrder() {
-  const rows = document.querySelectorAll("#process-rows tr");
-  let message = "";
-  let lastAt = null;
-  let lastPid = "";
-
-  rows.forEach((row) => {
-    const atInput = row.querySelector(".at-input");
-    const pid = row.querySelector(".pid-input").value.trim();
-    const at = parseInt(atInput.value, 10);
-    const bad = lastAt !== null && !isNaN(at) && at < lastAt;
-    atInput.classList.toggle("input-invalid", bad);
-
-    if (bad && !message) {
-      message = `Arrival time of ${pid} (${at}) cannot be less than the arrival time of ${lastPid} (${lastAt}) added before it.`;
-    }
-    if (!isNaN(at) && (lastAt === null || at >= lastAt)) {
-      lastAt = at;
-      lastPid = pid;
-    }
-  });
-  return message;
-}
-
 // Soft warnings (do NOT stop the simulation)
 function showWarnings(warnings) {
   const box = document.getElementById("run-warning");
@@ -251,7 +225,6 @@ document.getElementById("process-rows").addEventListener("click", (e) => {
       tr.remove();
       updateRunButtonState();
       resetResults();
-      document.getElementById("run-error").textContent = validateArrivalOrder();
     }
   }
 });
@@ -287,7 +260,6 @@ function resetResults() {
 
 document.getElementById("process-rows").addEventListener("input", () => {
   resetResults();
-  document.getElementById("run-error").textContent = validateArrivalOrder();
 });
 
 // ---------------- Ready Queue & Running Process View ----------------
@@ -506,16 +478,16 @@ function renderResults(data) {
 
 // ---------------- Run Simulation Trigger ----------------
 
+// Sends the text exactly as typed, so the server can reject values like 2.5 instead of rounding them
 function collectProcesses() {
   const rows = document.querySelectorAll("#process-rows tr");
   const processes = [];
   rows.forEach((row) => {
-    const pid = row.querySelector(".pid-input").value.trim();
-    const at = parseInt(row.querySelector(".at-input").value, 10);
-    const bt = parseInt(row.querySelector(".bt-input").value, 10);
-    if (pid && !isNaN(at) && !isNaN(bt)) {
-      processes.push({ pid, at, bt });
-    }
+    processes.push({
+      pid: row.querySelector(".pid-input").value.trim(),
+      at: row.querySelector(".at-input").value.trim(),
+      bt: row.querySelector(".bt-input").value.trim(),
+    });
   });
   return processes;
 }
@@ -527,32 +499,21 @@ document
     errorBox.textContent = "";
 
     if (selectedAlgo !== "fcfs" && selectedAlgo !== "srtf" && selectedAlgo !== "sjf" && selectedAlgo !== "rr") {
-      errorBox.textContent = "Can't implement this algorithm at this moment still.";
+      errorBox.textContent = "That algorithm isn't available yet. Pick one from the list.";
       resetResults();
-      return;
-    }
-
-    const orderError = validateArrivalOrder();
-    if (orderError) {
-      errorBox.textContent = orderError; // this one blocks the run
       return;
     }
 
     const processes = collectProcesses();
     if (processes.length === 0) {
-      errorBox.textContent = "Please add at least one process to simulate.";
+      errorBox.textContent = "Add at least one process to run the simulation.";
       return;
     }
 
     const payload = { algorithm: selectedAlgo, processes };
     if (selectedAlgo === "rr") {
       const qInput = document.getElementById("quantum-input");
-      const quantum = qInput ? parseInt(qInput.value, 10) : 2;
-      if (isNaN(quantum) || quantum <= 0) {
-        errorBox.textContent = "Please enter a valid Time Quantum greater than 0.";
-        return;
-      }
-      payload.quantum = quantum;
+      payload.quantum = qInput ? qInput.value.trim() : "2"; // the server checks it
     }
 
     try {
