@@ -19,7 +19,7 @@ In Shortest Remaining Time First (SRTF) scheduling:
 ## Features
 
 - **Interactive Process Input Table**: Add, remove, or edit process rows with custom Arrival Time (AT) and Burst Time (BT).
-- **Ready Queue & Running Queue View**: Drawn like the lecture notes. Each box is one slice of CPU time, with its start time and the balance burst time left after it. Round Robin and SRTF show both rows (Ready Queue = every slice in order, Running Queue = the same slices with back-to-back runs of one process merged). FCFS and SJF show only the Running Queue (Gantt chart). View **all at once** or **step-by-step**.
+- **Ready Queue & Running Queue View**: Drawn like the lecture notes. Each box is one slice of CPU time, with its start time. The Ready Queue also shows the balance burst time left after each slice; the Running Queue does not. Round Robin and SRTF show both rows (Ready Queue = every slice in order, Running Queue = the same slices with back-to-back runs of one process merged). FCFS and SJF show only the Running Queue (Gantt chart). View **all at once** or **step-by-step**.
 - **Input Validation**: Mistakes in the input are blocked with a clear message, and harmless situations (like equal arrival times) show a warning while the simulation still runs. See *Input Validation* below.
 - **Process Result Table**: Clearly shows AT, BT, CT, TAT, WT, and RT for every process.
 - **Summary Metrics**: Displays Average Waiting Time, Average Turnaround Time, Average Response Time, and Total Schedule Time.

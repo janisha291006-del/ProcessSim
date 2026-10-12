@@ -3,13 +3,15 @@ import re
 
 
 def _pid_sort_key(item):
-    """Sort key for natural alphanumeric ordering"""
+    """Sort key for natural alphanumeric ordering (e.g., P1, P2, ..., P9, P10)."""
     pid = item["pid"] if isinstance(item, dict) else str(item)
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', pid)]
 
 
 def count_context_switches(gantt):
-    """Count real context switches: the CPU moves from one process to a different process"""
+    """Count real context switches: the CPU moves from one process to a DIFFERENT process.
+    (Round Robin can run the same process twice in a row when it is the only one left -
+    that is not a switch. Idle gaps are not counted either.)"""
     runs = [seg["pid"] for seg in gantt]
     return sum(1 for a, b in zip(runs, runs[1:]) if a != b)
 
@@ -339,11 +341,26 @@ def srtf(processes):
         "context_switches": context_switches,
     }
 
-
-# 4. Round Robin
+# =====================================================================
+# 4. Round Robin (RR) - Preemptive
+# =====================================================================
 
 def round_robin(processes, quantum=2):
-    
+    """
+    Round Robin CPU Scheduling Algorithm.
+
+    Parameters:
+      processes: list of dicts [{"pid": "P1", "at": 0, "bt": 5}, ...]
+      quantum: int (Time slice allocated per process, default=2)
+
+    Returns:
+      dict with:
+        - "table": list of dicts with (pid, at, bt, ct, tat, wt, rt)
+        - "gantt": list of execution slices [{"pid": "P1", "start": 0, "end": 2}, ...]
+        - "averages": {"wt": avg_wt, "tat": avg_tat, "rt": avg_rt}
+        - "total_time": total elapsed schedule time
+        - "context_switches": number of context switches
+    """
     if not processes:
         return {
             "table": [],
@@ -450,17 +467,25 @@ def round_robin(processes, quantum=2):
     }
 
 
-# Ready Queue / Running Queue rows
-
+# =====================================================================
+# Ready Queue / Running Queue rows (the format used in the lecture notes)
+# =====================================================================
 
 def build_queues(processes, gantt, algo):
     """
     Builds the two rows drawn in the lecture notes. Each box = one slice of CPU time:
+      {"pid": "P1" or None (idle), "start": 0, "end": 2, "bal": 3, "done": False, "note": "..."}
+      bal  = burst time still left AFTER the slice (0 = the process finishes there -> done)
 
     Ready Queue row  : every slice in the order processes are served (a process that is
                        put back in the queue shows up again). Used for RR and SRTF.
     Running Queue row: the same slices, but back-to-back slices of the same process are merged
                        (this is the Gantt chart). FCFS and SJF only have this row.
+
+    How long a slice is:
+      FCFS, SJF : one box per full burst (non-preemptive).
+      RR        : at most one time quantum (the algorithm already cuts the slices).
+      SRTF      : checked every 1 ms until the last arrival; after that the rest runs in one block.
     """
     if not processes:
         return {"ready": [], "running": [], "show_ready": False}
@@ -531,7 +556,7 @@ def build_queues(processes, gantt, algo):
 
 
 def build_warnings(processes, total_time=None):
-    
+    """Non-blocking warnings: the simulation still runs when any of these fire."""
     warnings = []
 
     if len(processes) > 1 and len({p["bt"] for p in processes}) == 1:
@@ -544,7 +569,7 @@ def build_warnings(processes, total_time=None):
     if len(set(arrivals)) < len(arrivals):
         warnings.append(
             "Some processes arrive at the same time. When processes tie, the earlier arrival "
-            "is picked first, then the lower process ID "
+            "is picked first, then the lower process ID (P1 before P2)."
         )
 
     return warnings

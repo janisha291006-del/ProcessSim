@@ -183,6 +183,15 @@ function showWarnings(warnings) {
   box.style.display = "block";
 }
 
+// PIDs are automatic: always P1, P2, P3... in row order (re-numbered after a delete)
+function renumberPids() {
+  const rows = document.querySelectorAll("#process-rows tr");
+  rows.forEach((tr, i) => {
+    tr.querySelector(".pid-input").value = `P${i + 1}`;
+  });
+  rowCount = rows.length;
+}
+
 // New rows start at the latest arrival time so the order rule is already satisfied
 function latestArrivalTime() {
   let latest = 0;
@@ -199,7 +208,7 @@ function addRow(pid = null, at = null, bt = 1) {
   const pidValue = pid || `P${rowCount}`;
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td><input type="text" class="pid-input" value="${pidValue}"></td>
+    <td><input type="text" class="pid-input" value="${pidValue}" readonly tabindex="-1" title="PIDs are assigned automatically"></td>
     <td><input type="number" class="at-input" value="${at}" min="0"></td>
     <td><input type="number" class="bt-input" value="${bt}" min="1"></td>
     <td class="action-col">
@@ -223,6 +232,7 @@ document.getElementById("process-rows").addEventListener("click", (e) => {
     const tr = btn.closest("tr");
     if (tr) {
       tr.remove();
+      renumberPids();
       updateRunButtonState();
       resetResults();
     }
@@ -291,7 +301,10 @@ function modeNoteHtml() {
     const q = document.getElementById("quantum-input").value;
     text = `Preemptive: time quantum = ${q} ms. A process runs at most ${q} ms, then goes to the back of the queue. The Running Queue joins back-to-back boxes of the same process.`;
   }
-  const legend = "Time: when the box starts (the last number is the end). Bal. Time: burst time left after the box. A red 0 means the process finishes there.";
+  const hasReady = selectedAlgo === "srtf" || selectedAlgo === "rr";
+  const legend = hasReady
+    ? "Time: when the box starts (the last number is the end). Bal. Time (Ready Queue only): burst time left after the box. A red 0 means the process finishes there."
+    : "Time: when the box starts (the last number is the end).";
   return `<div class="mode-note">${text}<br>${legend}</div>`;
 }
 
@@ -303,7 +316,7 @@ function queueColHtml({ name, color, time, endTime, bal, classes }) {
     <div class="q-col${classes}">
       <div class="q-box"${bg}>${name}</div>
       <div class="q-time">${time}${end}</div>
-      <div class="q-bal${bal === 0 ? " q-bal-zero" : ""}">${bal}</div>
+      ${bal === null ? "" : `<div class="q-bal${bal === 0 ? " q-bal-zero" : ""}">${bal}</div>`}
     </div>`;
 }
 
@@ -322,7 +335,7 @@ function buildTimelineHtml(boxes, colors, kind, currentIndex = -1) {
       color: idle ? "" : colors[box.pid],
       time: box.start,
       endTime: i === boxes.length - 1 ? box.end : null, // the last box also shows its end time
-      bal: idle ? "&mdash;" : box.bal,
+      bal: kind === "running" ? null : idle ? "&mdash;" : box.bal, // Running Queue has no Bal. Time row
       classes,
     });
   });
@@ -332,7 +345,7 @@ function buildTimelineHtml(boxes, colors, kind, currentIndex = -1) {
       <div class="q-labels">
         <div class="q-label q-label-box">${kind === "running" ? "Running" : "Ready"}</div>
         <div class="q-label">Time:</div>
-        <div class="q-label">Bal. Time:</div>
+        ${kind === "running" ? "" : '<div class="q-label">Bal. Time:</div>'}
       </div>
       <div class="q-scroll" id="tl-scroll-${kind}">
         <div class="q-strip">${cols}</div>
@@ -341,11 +354,12 @@ function buildTimelineHtml(boxes, colors, kind, currentIndex = -1) {
 }
 
 // The line under a step-by-step row explaining the box that was just added
-function stepCaptionHtml(box, index) {
+function stepCaptionHtml(box, index, kind) {
+  const left = kind === "ready" ? `, ${box.bal} ms left` : "";
   const text = box.pid
-    ? `<strong>${box.pid}</strong> runs ${box.start} &rarr; ${box.end} ms, ${box.bal} ms left`
+    ? `<strong>${box.pid}</strong> runs ${box.start} &rarr; ${box.end} ms${left}`
     : `CPU is idle (${box.start} &rarr; ${box.end} ms)`;
-  return `<div class="current-seg">Step ${index + 1}: ${text}${box.note ? ` &middot; ${box.note}` : ""}</div>`;
+  return `<div class="current-seg">Step ${index + 1}: ${text}${box.note && kind === "ready" ? ` &middot; ${box.note}` : ""}</div>`;
 }
 
 function renderQueuePanel(kind) {
@@ -367,7 +381,7 @@ function renderQueuePanel(kind) {
   const i = view.index;
   container.innerHTML = `
     ${buildTimelineHtml(boxes.slice(0, i + 1), colors, kind, i)}
-    ${stepCaptionHtml(boxes[i], i)}
+    ${stepCaptionHtml(boxes[i], i, kind)}
     <div class="step-controls">
       <button type="button" class="step-btn" id="${kind}-prev" ${i === 0 ? "disabled" : ""}>&larr; Prev</button>
       <button type="button" class="step-btn" id="${kind}-next" ${i === boxes.length - 1 ? "disabled" : ""}>Next &rarr;</button>

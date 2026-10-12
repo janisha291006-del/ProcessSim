@@ -1256,3 +1256,12 @@ body {
   .tab-btn { padding: 10px 10px; font-size: 12px; gap: 6px; }
   .tab-num { width: 18px; height: 18px; font-size: 11px; }
 }
+
+/* PID cells are read-only: they look like plain text, not an input box */
+.pid-input[readonly] {
+  background: transparent;
+  border-color: transparent;
+  font-weight: 700;
+  cursor: default;
+  box-shadow: none;
+}
