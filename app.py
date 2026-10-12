@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, url_for
-from algorithms import fcfs, srtf, sjf, round_robin, build_steps, build_warnings
+from algorithms import fcfs, srtf, sjf, round_robin, build_queues, build_warnings
 from insights import get_insights, InsightError
 
 load_dotenv()  # reads GEMINI_API_KEY from the .env file
@@ -41,6 +41,7 @@ def validate_processes(data):
 
     processes = []
     used_ids = {}  # lowercase ID -> the ID as the user typed it
+    last = None    # (ID, arrival time) of the row above, arrivals must not go backwards
     for num in raw_list:
         pid = str(num.get("pid", "")).strip()
         if not pid:
@@ -62,6 +63,15 @@ def validate_processes(data):
             raise ValueError(f"The arrival time of {pid} can't be negative. Use 0 or a bigger number.")
         if bt < 1:
             raise ValueError(f"The burst time of {pid} must be at least 1 ms.")
+
+        # A process listed below another one cannot have arrived before it
+        if last is not None and at < last[1]:
+            raise ValueError(
+                f"{pid} arrives at {at} ms, which is earlier than {last[0]} ({last[1]} ms) listed above it. "
+                "Enter processes in order of arrival time, so each arrival time is the same as or bigger than the row above."
+            )
+        last = (pid, at)
+
         processes.append({"pid": pid, "at": at, "bt": bt})
 
     return processes
@@ -95,10 +105,9 @@ def simulate():
             quantum = parse_quantum(data)
             result = round_robin(processes, quantum=quantum)
 
-        # The UI shows ready/running queues step by step, so the raw Gantt slices
-        # are only used to build the steps and are not sent to the browser.
+        # The UI draws the Ready / Running queue rows, so the raw Gantt list is turned into those rows
         gantt = result.pop("gantt")
-        result["steps"] = build_steps(processes, gantt, algo)
+        result["queues"] = build_queues(processes, gantt, algo)
         result["warnings"] = build_warnings(processes, result["total_time"])  # shown, never blocks the run
         return jsonify(result)
     except Exception as exc:  # Catches any validation or execution error

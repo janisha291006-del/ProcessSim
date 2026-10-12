@@ -267,36 +267,35 @@ document.getElementById("process-rows").addEventListener("input", () => {
 // Warm palette: every process keeps its own color everywhere
 const BLOCK_COLORS = ["#F3DE8A", "#8FBC94", "#F0C56B", "#B7D9BC", "#E8B44F", "#6FA37A"];
 
-function buildPidColorMap(steps) {
+// Every process keeps the same color in both rows (colors are given in order of first appearance)
+function buildPidColorMap(boxes) {
   const pidColor = {};
   let colorIdx = 0;
-  steps.forEach((st) => {
-    const pids = [st.running, ...st.ready.map((p) => p.pid)];
-    pids.forEach((pid) => {
-      if (pid && !(pid in pidColor)) {
-        pidColor[pid] = BLOCK_COLORS[colorIdx % BLOCK_COLORS.length];
-        colorIdx += 1;
-      }
-    });
+  boxes.forEach((box) => {
+    if (box.pid && !(box.pid in pidColor)) {
+      pidColor[box.pid] = BLOCK_COLORS[colorIdx % BLOCK_COLORS.length];
+      colorIdx += 1;
+    }
   });
   return pidColor;
 }
 
-// Explains how long each step lasts for the chosen algorithm
+// Explains how the boxes are cut for the chosen algorithm
 function modeNoteHtml() {
   let text = "";
   if (selectedAlgo === "fcfs" || selectedAlgo === "sjf") {
-    text = "Non-preemptive: no time quantum. Each process runs its full burst time in one go, and the ready queue shows who is waiting when it finishes.";
+    text = "Non-preemptive: no time quantum. Each process runs its full burst in one box. Only the Running Queue (Gantt chart) is drawn.";
   } else if (selectedAlgo === "srtf") {
-    text = "Preemptive: time quantum = 1 ms. The shortest remaining job is picked again every 1 ms.";
+    text = "Preemptive: the shortest remaining job is checked every 1 ms until the last process has arrived. After that, each process runs the rest of its burst in one box.";
   } else if (selectedAlgo === "rr") {
     const q = document.getElementById("quantum-input").value;
-    text = `Preemptive: time quantum = ${q} ms. Each process runs at most ${q} ms, then goes to the back of the ready queue.`;
+    text = `Preemptive: time quantum = ${q} ms. A process runs at most ${q} ms, then goes to the back of the queue. The Running Queue joins back-to-back boxes of the same process.`;
   }
-  return `<div class="mode-note">${text}</div>`;
+  const legend = "Time: when the box starts (the last number is the end). Bal. Time: burst time left after the box. A red 0 means the process finishes there.";
+  return `<div class="mode-note">${text}<br>${legend}</div>`;
 }
 
-// One column of the queue strip: [ box with name ]  then Time under it, then Bal. Time under it
+// One column of the strip: [ box with name ], the Time under it, then Bal. Time under it
 function queueColHtml({ name, color, time, endTime, bal, classes }) {
   const bg = color ? ` style="background:${color}"` : "";
   const end = endTime !== null && endTime !== undefined ? `<span class="q-time-end">${endTime}</span>` : "";
@@ -308,42 +307,23 @@ function queueColHtml({ name, color, time, endTime, bal, classes }) {
     </div>`;
 }
 
-// ONE queue in the notebook format:
-//   Running Queue :  [ P1 | P1 | P3 | ... ]
-//   Time:            0    1    2   ...
-//   Bal. Time:       4    3    0   ...
-// kind = "running" (one box per step) or "ready" (the boxes are the processes waiting in each step)
-function buildTimelineHtml(steps, colors, kind, currentIndex = -1) {
+// ONE row in the lecture-notes format:
+//   Ready Queue :  [ P1 | P2 | P3 | ... ]
+//   Time:          0    2    4   ...  12
+//   Bal. Time:     3    2    0   ...
+function buildTimelineHtml(boxes, colors, kind, currentIndex = -1) {
   let cols = "";
-
-  steps.forEach((st, i) => {
-    const current = i === currentIndex ? " current" : "";
-
-    if (kind === "running") {
-      const last = i === steps.length - 1;
-      cols += queueColHtml({
-        name: st.running || "Idle",
-        color: st.running ? colors[st.running] : "",
-        time: st.start,
-        endTime: last ? st.end : null,
-        // balance (remaining) burst time AFTER this step has run
-        bal: st.running ? st.running_remaining - (st.end - st.start) : "&mdash;",
-        classes: current + (st.running ? "" : " idle"),
-      });
-      return;
-    }
-
-    // Ready queue: one box per waiting process (front first). A thicker line separates each step.
-    const items = st.ready.length ? st.ready : [null];
-    items.forEach((p, j) => {
-      cols += queueColHtml({
-        name: p ? p.pid : "empty",
-        color: p ? colors[p.pid] : "",
-        time: j === 0 ? st.ready_at : "",
-        endTime: null,
-        bal: p ? p.remaining : "&mdash;",
-        classes: current + (j === 0 && i > 0 ? " group-start" : "") + (p ? "" : " idle"),
-      });
+  boxes.forEach((box, i) => {
+    const idle = box.pid === null;
+    const classes =
+      (i === currentIndex ? " current" : "") + (idle ? " idle" : "") + (box.done ? " done" : "");
+    cols += queueColHtml({
+      name: idle ? "Idle" : box.pid,
+      color: idle ? "" : colors[box.pid],
+      time: box.start,
+      endTime: i === boxes.length - 1 ? box.end : null, // the last box also shows its end time
+      bal: idle ? "&mdash;" : box.bal,
+      classes,
     });
   });
 
@@ -360,55 +340,49 @@ function buildTimelineHtml(steps, colors, kind, currentIndex = -1) {
     </div>`;
 }
 
-// The line under a step-by-step timeline explaining the current step
-function stepCaptionHtml(st, index, kind) {
-  let text = "";
-  if (kind === "running") {
-    text = st.running
-      ? `<strong>${st.running}</strong> is running (${st.start}ms &rarr; ${st.end}ms)`
-      : `CPU is idle (${st.start}ms &rarr; ${st.end}ms)`;
-  } else {
-    const queue = st.ready.length ? st.ready.map((p) => p.pid).join(" &rarr; ") : "empty";
-    text = `Ready queue: <strong>${queue}</strong>`;
-  }
-  return `<div class="current-seg">Step ${index + 1}: ${text}${st.note ? ` &middot; ${st.note}` : ""}</div>`;
+// The line under a step-by-step row explaining the box that was just added
+function stepCaptionHtml(box, index) {
+  const text = box.pid
+    ? `<strong>${box.pid}</strong> runs ${box.start} &rarr; ${box.end} ms, ${box.bal} ms left`
+    : `CPU is idle (${box.start} &rarr; ${box.end} ms)`;
+  return `<div class="current-seg">Step ${index + 1}: ${text}${box.note ? ` &middot; ${box.note}` : ""}</div>`;
 }
 
 function renderQueuePanel(kind) {
   const view = queueViews[kind];
-  const steps = lastSimData.steps;
+  const boxes = lastSimData.queues[kind];
   const container = document.getElementById(`${kind}-container`);
-  const colors = buildPidColorMap(steps);
+  const colors = buildPidColorMap(lastSimData.queues.ready.length ? lastSimData.queues.ready : lastSimData.queues.running);
 
   document.getElementById(`${kind}-full-btn`).classList.toggle("active", view.mode === "full");
   document.getElementById(`${kind}-step-btn`).classList.toggle("active", view.mode === "step");
 
-  // All at once: the whole queue timeline in one go
+  // All at once: the whole row in one go
   if (view.mode === "full") {
-    container.innerHTML = buildTimelineHtml(steps, colors, kind);
+    container.innerHTML = buildTimelineHtml(boxes, colors, kind);
     return;
   }
 
-  // Step by step: the timeline grows one step at a time
+  // Step by step: the row grows one box at a time
   const i = view.index;
   container.innerHTML = `
-    ${buildTimelineHtml(steps.slice(0, i + 1), colors, kind, i)}
-    ${stepCaptionHtml(steps[i], i, kind)}
+    ${buildTimelineHtml(boxes.slice(0, i + 1), colors, kind, i)}
+    ${stepCaptionHtml(boxes[i], i)}
     <div class="step-controls">
       <button type="button" class="step-btn" id="${kind}-prev" ${i === 0 ? "disabled" : ""}>&larr; Prev</button>
-      <button type="button" class="step-btn" id="${kind}-next" ${i === steps.length - 1 ? "disabled" : ""}>Next &rarr;</button>
-      <span class="step-info">Step ${i + 1} of ${steps.length}</span>
+      <button type="button" class="step-btn" id="${kind}-next" ${i === boxes.length - 1 ? "disabled" : ""}>Next &rarr;</button>
+      <span class="step-info">Step ${i + 1} of ${boxes.length}</span>
     </div>`;
 
   const scroller = document.getElementById(`tl-scroll-${kind}`);
-  if (scroller) scroller.scrollLeft = scroller.scrollWidth; // keep the current step visible
+  if (scroller) scroller.scrollLeft = scroller.scrollWidth; // keep the newest box visible
 
   document.getElementById(`${kind}-prev`).addEventListener("click", () => {
     view.index = Math.max(view.index - 1, 0);
     renderQueuePanel(kind);
   });
   document.getElementById(`${kind}-next`).addEventListener("click", () => {
-    view.index = Math.min(view.index + 1, steps.length - 1);
+    view.index = Math.min(view.index + 1, boxes.length - 1);
     renderQueuePanel(kind);
   });
 }
@@ -416,11 +390,17 @@ function renderQueuePanel(kind) {
 function renderQueueView() {
   if (!lastSimData) return;
   document.getElementById("mode-note").innerHTML = modeNoteHtml();
+
+  // FCFS and SJF have only the Running Queue (Gantt chart) in the lecture notes
+  const showReady = lastSimData.queues.show_ready;
+  document.getElementById("ready-title-row").style.display = showReady ? "flex" : "none";
+  document.getElementById("ready-container").style.display = showReady ? "block" : "none";
+
   renderQueuePanel("running");
-  renderQueuePanel("ready");
+  if (showReady) renderQueuePanel("ready");
 }
 
-// Each queue has its own All at Once / Step-by-Step toggle
+// Each row has its own All at Once / Step-by-Step toggle
 ["running", "ready"].forEach((kind) => {
   document.getElementById(`${kind}-full-btn`).addEventListener("click", () => {
     queueViews[kind].mode = "full";

@@ -3,15 +3,13 @@ import re
 
 
 def _pid_sort_key(item):
-    """Sort key for natural alphanumeric ordering (e.g., P1, P2, ..., P9, P10)."""
+    """Sort key for natural alphanumeric ordering"""
     pid = item["pid"] if isinstance(item, dict) else str(item)
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', pid)]
 
 
 def count_context_switches(gantt):
-    """Count real context switches: the CPU moves from one process to a DIFFERENT process.
-    (Round Robin can run the same process twice in a row when it is the only one left -
-    that is not a switch. Idle gaps are not counted either.)"""
+    """Count real context switches: the CPU moves from one process to a different process"""
     runs = [seg["pid"] for seg in gantt]
     return sum(1 for a, b in zip(runs, runs[1:]) if a != b)
 
@@ -341,26 +339,11 @@ def srtf(processes):
         "context_switches": context_switches,
     }
 
-# =====================================================================
-# 4. Round Robin (RR) - Preemptive
-# =====================================================================
+
+# 4. Round Robin
 
 def round_robin(processes, quantum=2):
-    """
-    Round Robin CPU Scheduling Algorithm.
-
-    Parameters:
-      processes: list of dicts [{"pid": "P1", "at": 0, "bt": 5}, ...]
-      quantum: int (Time slice allocated per process, default=2)
-
-    Returns:
-      dict with:
-        - "table": list of dicts with (pid, at, bt, ct, tat, wt, rt)
-        - "gantt": list of execution slices [{"pid": "P1", "start": 0, "end": 2}, ...]
-        - "averages": {"wt": avg_wt, "tat": avg_tat, "rt": avg_rt}
-        - "total_time": total elapsed schedule time
-        - "context_switches": number of context switches
-    """
+    
     if not processes:
         return {
             "table": [],
@@ -467,140 +450,101 @@ def round_robin(processes, quantum=2):
     }
 
 
-# =====================================================================
-# Step-by-step queue snapshots (replaces the Gantt chart in the UI)
-# =====================================================================
+# Ready Queue / Running Queue rows
 
-def build_steps(processes, gantt, algo):
+
+def build_queues(processes, gantt, algo):
     """
-    Turn the execution slices into "steps" for the ready-queue / running-queue view.
+    Builds the two rows drawn in the lecture notes. Each box = one slice of CPU time:
 
-    How long one step lasts depends on the algorithm:
-      - FCFS, SJF  : non-preemptive, so no time quantum. A step is the process's full burst.
-      - SRTF       : preemptive, checked every 1 ms (time quantum = 1).
-      - Round Robin: one step per time-quantum slice (the algorithm already cuts them).
-
-    Each step looks like:
-      {"start": 0, "end": 5, "running": "P1" or None (idle),
-       "running_remaining": 5,
-       "ready": [{"pid": "P2", "remaining": 4}, ...],   # front of the queue first
-       "completed": ["P3"],
-       "note": "P1 completes, P2 arrives"}
-    The ready queue is who is waiting: at the start of the step for SRTF/RR, and at the end of the
-    burst for FCFS/SJF (they run a whole burst at once, so anyone who arrived meanwhile was waiting).
+    Ready Queue row  : every slice in the order processes are served (a process that is
+                       put back in the queue shows up again). Used for RR and SRTF.
+    Running Queue row: the same slices, but back-to-back slices of the same process are merged
+                       (this is the Gantt chart). FCFS and SJF only have this row.
     """
     if not processes:
-        return []
+        return {"ready": [], "running": [], "show_ready": False}
 
-    info = {p["pid"]: p for p in processes}
     remaining = {p["pid"]: p["bt"] for p in processes}
     arrivals = sorted(processes, key=lambda p: (p["at"], _pid_sort_key(p)))
+    last_arrival = max(p["at"] for p in processes)
 
-    # Idle gaps are shown as steps too, so the CPU never "disappears" from the view
-    slices = []
+    # 1. Execution segments, with idle gaps shown as boxes too
+    segments = []
     clock = min(p["at"] for p in processes)
     for seg in gantt:
         if seg["start"] > clock:
-            slices.append({"pid": None, "start": clock, "end": seg["start"]})
-        slices.append(seg)
+            segments.append({"pid": None, "start": clock, "end": seg["start"]})
+        segments.append(seg)
         clock = seg["end"]
 
-    rr_queue = []        # only used by Round Robin (real queue order matters there)
-    in_rr_queue = set()
-    completed = []
-
-    def arrive_rr(time):
-        # Round Robin keeps its own queue order: arrivals are added behind the others
-        for p in arrivals:
-            if p["at"] <= time and p["pid"] not in in_rr_queue:
-                rr_queue.append(p["pid"])
-                in_rr_queue.add(p["pid"])
-
-    def ready_list(time, running):
-        if algo == "rr":
-            arrive_rr(time)
-            pids = [pid for pid in rr_queue if pid != running]
-        else:
-            pids = [p["pid"] for p in processes
-                    if p["at"] <= time and remaining[p["pid"]] > 0 and p["pid"] != running]
-            if algo == "fcfs":
-                key = lambda pid: (info[pid]["at"], _pid_sort_key(pid))
-            elif algo == "sjf":
-                key = lambda pid: (info[pid]["bt"], info[pid]["at"], _pid_sort_key(pid))
-            else:  # srtf
-                key = lambda pid: (remaining[pid], info[pid]["at"], _pid_sort_key(pid))
-            pids.sort(key=key)
-        return [{"pid": pid, "remaining": remaining[pid]} for pid in pids]
-
-    steps = []
-    for seg in slices:
-        running = seg["pid"]
-
-        # SRTF re-decides every 1 ms (time quantum = 1); every other case is one step per slice
-        if algo == "srtf" and running:
-            points = list(range(seg["start"], seg["end"])) + [seg["end"]]
-        else:
-            points = [seg["start"], seg["end"]]
-
+    # 2. Cut the segments into slices
+    slices = []
+    for seg in segments:
+        points = [seg["start"], seg["end"]]
+        if algo == "srtf" and seg["pid"]:
+            cuts = [t for t in range(seg["start"] + 1, seg["end"]) if t <= last_arrival]
+            points = [seg["start"]] + cuts + [seg["end"]]
         for a, b in zip(points, points[1:]):
-            if algo == "rr":
-                arrive_rr(a)
-                if running in rr_queue:
-                    rr_queue.remove(running)  # it was popped from the queue to run
+            slices.append({"pid": seg["pid"], "start": a, "end": b})
 
-            # FCFS/SJF run a whole burst at once, so show everyone who has been waiting
-            # by the time it finishes. SRTF/RR show the queue as the step starts.
-            ready_time = b if algo in ("fcfs", "sjf") else a
+    # 3. Balance time after each slice, completion, and a short note
+    ready = []
+    for sl in slices:
+        pid, a, b = sl["pid"], sl["start"], sl["end"]
+        notes = []
+        if pid:
+            remaining[pid] -= (b - a)
+            sl["bal"] = remaining[pid]
+            sl["done"] = remaining[pid] == 0
+            if sl["done"]:
+                notes.append(f"{pid} completes")
+            elif algo == "rr":
+                notes.append(f"{pid} has {sl['bal']} ms left, so it goes to the back of the queue")
+        else:
+            sl["bal"] = None
+            sl["done"] = False
+            notes.append("CPU is idle")
 
-            step = {
-                "start": a,
-                "end": b,
-                "running": running,
-                "running_remaining": remaining[running] if running else None,
-                "ready_at": ready_time,   # the time this ready queue snapshot belongs to
-                "ready": ready_list(ready_time, running),
-                "completed": list(completed),
-            }
+        arrived = [p["pid"] for p in arrivals if a < p["at"] <= b]
+        if arrived:
+            text = f"{', '.join(arrived)} arrive{'s' if len(arrived) == 1 else ''}"
+            if algo == "rr" and pid and not sl["done"]:
+                text += f" (they enter the queue before {pid} goes back)"
+            notes.append(text)
+        sl["note"] = "; ".join(notes)
+        ready.append(sl)
 
-            if running:
-                remaining[running] -= (b - a)
+    # 4. Running Queue = same slices, back-to-back slices of one process merged
+    running = []
+    for sl in ready:
+        last = running[-1] if running else None
+        if last and sl["pid"] and last["pid"] == sl["pid"] and last["end"] == sl["start"]:
+            last["end"] = sl["end"]
+            last["bal"] = sl["bal"]
+            last["done"] = sl["done"]
+            last["note"] = "; ".join(n for n in (last["note"], sl["note"]) if n)
+        else:
+            running.append(dict(sl))
 
-            notes = []
-            if running and remaining[running] == 0:
-                completed.append(running)
-                notes.append(f"{running} completes")
-            elif running and algo == "rr" and b == seg["end"]:
-                notes.append(f"{running} goes back to the queue (quantum over)")
-            arrived = [p["pid"] for p in arrivals if a < p["at"] <= b]
-            if arrived:
-                notes.append(f"{', '.join(arrived)} arrive{'s' if len(arrived) == 1 else ''}")
-            step["note"] = ", ".join(notes)
-
-            # Round Robin: arrivals up to the end of the slice go before the preempted process
-            if algo == "rr" and b == seg["end"]:
-                arrive_rr(b)
-                if running and remaining[running] > 0:
-                    rr_queue.append(running)
-
-            steps.append(step)
-
-    return steps
+    return {"ready": ready, "running": running, "show_ready": algo in ("rr", "srtf")}
 
 
 def build_warnings(processes, total_time=None):
-    """Non-blocking warnings: the simulation still runs when any of these fire."""
+    
     warnings = []
 
-    if total_time is not None:
-        idle = total_time - sum(p["bt"] for p in processes)
-        if idle > 0:
-            warnings.append(f"The CPU sits idle for {idle} ms in total, waiting for the next process to arrive.")
+    if len(processes) > 1 and len({p["bt"] for p in processes}) == 1:
+        warnings.append(
+            f"All processes have the same Burst Time ({processes[0]['bt']} ms). This is unlikely in a real system, "
+            "where jobs differ in length. SJF and SRTF cannot pick a shorter job here, so they behave like FCFS."
+        )
 
     arrivals = [p["at"] for p in processes]
     if len(set(arrivals)) < len(arrivals):
         warnings.append(
             "Some processes arrive at the same time. When processes tie, the earlier arrival "
-            "is picked first, then the lower process ID (P1 before P2)."
+            "is picked first, then the lower process ID "
         )
 
     return warnings

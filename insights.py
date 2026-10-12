@@ -21,6 +21,11 @@ TRIES_PER_MODEL = 2   # a busy model gets a second chance
 WAIT_SECONDS = 2      # pause before trying again
 
 
+# Saved insights: same processes + same quantum -> same insights, and no extra Gemini call.
+# It lives in memory only, so it is cleared when the server restarts.
+_saved_insights = {}
+
+
 class InsightError(Exception):
     """A problem we can explain to the user in plain words."""
 
@@ -47,11 +52,13 @@ def _build_prompt(processes, quantum, comparison):
         "(non-preemptive), SRTF (preemptive) and Round Robin on the same set of processes. "
         "Here are the results (all times in ms):\n\n"
         f"{json.dumps(summary)}\n\n"
-        "Write exactly 4 insights that explain these specific results. Cover: "
-        "(1) which algorithm is best for average waiting/turnaround time and why, "
-        "(2) response time and fairness, especially Round Robin and the effect of the time quantum, "
-        "(3) the cost of preemption (context switches), "
-        "(4) one risk or trade-off visible in this data, such as the convoy effect or starvation of a long job.\n"
+        "Write exactly 4 insights that explain these specific results, in this exact order, "
+        "one insight per topic:\n"
+        "Insight 1 = which algorithm is best for average waiting/turnaround time and why.\n"
+        "Insight 2 = response time and fairness, especially Round Robin and the effect of the time quantum.\n"
+        "Insight 3 = the cost of preemption (context switches).\n"
+        "Insight 4 = one risk or trade-off visible in this data, such as the convoy effect or starvation of a long job.\n"
+        "Do not add, skip, merge or reorder topics.\n"
         "Rules: use the real numbers from the results, never invent numbers. "
         "Each insight has a short title (max 6 words) and a body of 1-2 simple sentences "
         "that a second-year BTech student can understand. Plain text only, no markdown."
@@ -99,8 +106,9 @@ def _send_with_retry(api_key, models, body):
             # These will not get better by trying again
             if res.status_code in (400, 403) and "API key" in res.text:
                 raise InsightError("Gemini rejected the API key. Check GEMINI_API_KEY in your .env file.")
-            if res.status_code == 429:
-                raise InsightError("Gemini rate limit reached. Wait a minute and try again.")
+            if res.status_code == 429:  # this model's quota is used up -> the next model has its own quota
+                last_error = InsightError("Gemini rate limit reached. Wait a minute and try again.")
+                break
             raise InsightError(f"Gemini returned an error (HTTP {res.status_code}). Please try again.")
 
     raise last_error
@@ -108,6 +116,10 @@ def _send_with_retry(api_key, models, body):
 
 def get_insights(processes, quantum, comparison):
     """Returns a list of 4 dicts: [{"title": "...", "text": "..."}, ...]"""
+    key = json.dumps([processes, quantum], sort_keys=True)
+    if key in _saved_insights:
+        return _saved_insights[key]
+
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key or api_key == "your_new_key_here":
         raise InsightError("Gemini API key is missing. Add GEMINI_API_KEY to your .env file and restart the server.")
@@ -149,4 +161,5 @@ def get_insights(processes, quantum, comparison):
 
     if len(insights) < 4:
         raise InsightError("Gemini returned fewer than 4 insights. Please try again.")
+    _saved_insights[key] = insights[:4]  # only good answers are saved, errors are never saved
     return insights[:4]

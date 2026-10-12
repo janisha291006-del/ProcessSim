@@ -282,7 +282,7 @@ async function loadInsights() {
         )
         .join("") +
       `</div>`;
-    refreshBtn.style.display = "inline-block";
+    // no Regenerate button: the 4 insights stay fixed once shown
   } catch (err) {
     if (myRequest !== insightsRequestId) return;
     insightsBox.innerHTML = `<div class="insights-error">${esc(err.message)}</div>`;
@@ -290,7 +290,6 @@ async function loadInsights() {
     refreshBtn.textContent = "\u21BB Try again";
     return;
   }
-  refreshBtn.textContent = "\u21BB Regenerate";
 }
 
 refreshBtn.addEventListener("click", loadInsights);

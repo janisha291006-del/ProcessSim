@@ -17,8 +17,8 @@
 
   <!-- Screen switcher -->
   <nav class="tabs">
-    <button type="button" class="tab-btn active" data-screen="sim">1. Simulator &amp; Results</button>
-    <button type="button" class="tab-btn" data-screen="compare">2. Comparison &amp; Analysis</button>
+    <button type="button" class="tab-btn active" data-screen="sim"><span class="tab-num">1</span>Simulator &amp; Results</button>
+    <button type="button" class="tab-btn" data-screen="compare"><span class="tab-num">2</span>Comparison &amp; Analysis</button>
   </nav>
 
   <!-- Main Simulator Screen -->
@@ -98,8 +98,17 @@
 
         <!-- Simulation Results Section (Displayed after running) -->
         <div id="results-section" style="display: none">
-          <!-- 1. Running Queue and Ready Queue (each has its own view toggle) -->
+          <!-- 1. Ready Queue and Running Queue, drawn like the lecture notes (each has its own view toggle) -->
           <div id="mode-note"></div>
+
+          <div class="section-title-row" id="ready-title-row">
+            <div class="section-title">Ready Queue :</div>
+            <div class="view-toggle">
+              <button type="button" class="view-btn active" id="ready-full-btn">All at Once</button>
+              <button type="button" class="view-btn" id="ready-step-btn">Step-by-Step</button>
+            </div>
+          </div>
+          <div id="ready-container"></div>
 
           <div class="section-title-row">
             <div class="section-title">Running Queue :</div>
@@ -109,15 +118,6 @@
             </div>
           </div>
           <div id="running-container"></div>
-
-          <div class="section-title-row">
-            <div class="section-title">Ready Queue :</div>
-            <div class="view-toggle">
-              <button type="button" class="view-btn active" id="ready-full-btn">All at Once</button>
-              <button type="button" class="view-btn" id="ready-step-btn">Step-by-Step</button>
-            </div>
-          </div>
-          <div id="ready-container"></div>
 
           <!-- 2. Process Calculation Results Table -->
           <div class="results-table-section">
@@ -226,7 +226,7 @@
           <div>
             <div class="section-title-row">
               <div class="section-title">Insights from Gemini AI</div>
-              <button type="button" id="insights-refresh" class="view-btn" style="display: none;">&#8635; Regenerate</button>
+              <button type="button" id="insights-refresh" class="view-btn" style="display: none;">&#8635; Try again</button>
             </div>
             <div id="insights-container"></div>
           </div>

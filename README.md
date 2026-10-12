@@ -19,10 +19,31 @@ In Shortest Remaining Time First (SRTF) scheduling:
 ## Features
 
 - **Interactive Process Input Table**: Add, remove, or edit process rows with custom Arrival Time (AT) and Burst Time (BT).
-- **Ready Queue & Running Process View**: Shows who is on the CPU and who is waiting in the ready queue at every step, either **all steps at once** or **step-by-step**.
-- **Input Validation**: A new process cannot arrive earlier than the processes added before it. If every process has the same Burst Time, a warning is shown but the simulation still runs.
+- **Ready Queue & Running Queue View**: Drawn like the lecture notes. Each box is one slice of CPU time, with its start time and the balance burst time left after it. Round Robin and SRTF show both rows (Ready Queue = every slice in order, Running Queue = the same slices with back-to-back runs of one process merged). FCFS and SJF show only the Running Queue (Gantt chart). View **all at once** or **step-by-step**.
+- **Input Validation**: Mistakes in the input are blocked with a clear message, and harmless situations (like equal arrival times) show a warning while the simulation still runs. See *Input Validation* below.
 - **Process Result Table**: Clearly shows AT, BT, CT, TAT, WT, and RT for every process.
 - **Summary Metrics**: Displays Average Waiting Time, Average Turnaround Time, Average Response Time, and Total Schedule Time.
+
+## Input Validation
+
+**Blocking validations** (the simulation does not run, and a message explains the problem):
+1. At least one process is required.
+2. Every process needs an ID.
+3. IDs must be unique, and case-insensitive (`P1` and `p1` clash).
+4. Arrival and burst times are both required.
+5. Arrival time must be a whole number.
+6. Burst time must be a whole number.
+7. Arrival time cannot be negative.
+8. Burst time must be at least 1 ms.
+9. Arrival times must not go backwards: a process listed below another one cannot arrive earlier than it (equal arrival times are allowed).
+10. Round Robin quantum must be a whole number.
+11. Round Robin quantum must be at least 1 ms.
+
+**Warnings** (the simulation still runs):
+1. Processes arrive at the same time, and the tie-break rule is explained.
+2. All processes have the same burst time: this is unlikely in a real system, and SJF and SRTF behave like FCFS.
+
+These checks run on the server (`validate_processes()` in `app.py`), so the Simulator screen and the Comparison screen follow exactly the same rules.
 
 ## Comparison & Analysis Screen (Screen 2)
 
@@ -30,23 +51,6 @@ Open the **2. Comparison & Analysis** tab to run FCFS, SJF, SRTF and Round Robin
 It shows three headline winners, charts (average times, context switches, waiting time per process)
 and 4 AI insights written by Google Gemini. In every chart each algorithm keeps its own color, and the
 best bar is outlined.
-
-**Blocking validations (the simulation does not run):**
-
-1.At least one process is required.
-2.Every process needs an ID.
-3.IDs must be unique, and case-insensitive (P1 and p1 clash).
-4.Arrival and burst times are both required.
-5.Arrival time must be a whole number.
-6.Burst time must be a whole number.
-7.Arrival time cannot be negative.
-8.Burst time must be at least 1 ms.
-9.Round Robin quantum must be a whole number.
-10.Round Robin quantum must be at least 1 ms.
-
-**Warnings (the simulation still runs):**
-1.The CPU is idle for some time while waiting for processes to arrive.
-2.Processes arrive at the same time, and the tie-break rule is explained.
 
 **Gemini setup (needed only for the insights):**
 1. Copy `.env.example` to `.env`
